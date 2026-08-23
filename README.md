@@ -24,26 +24,35 @@ Bienvenido/a a tu repositorio de proyecto. **Este archivo es tu tablero de mando
 
 ### 1.1 El problema jurídico
 ¿Qué problema **real del derecho colombiano** resuelve tu herramienta? ¿Quién lo sufre hoy y cómo lo resuelve sin tu herramienta?
+---
+Mi herramienta busca resolver la dificultad que tienen muchas personas en Colombia para redactar y presentar correctamente una PQRS y ejercer de manera efectiva sus derechos frente a entidades públicas y privadas. Este problema lo sufren especialmente quienes no tienen conocimientos jurídicos y no saben qué información incluir, cómo estructurar su solicitud o qué pedir. Actualmente, deben buscar  ayuda a  conocidos, o acudir a un abogado, lo que puede implicar tiempo y costos adicionales. Esta herramienta les permitiría explicar su situación en lenguaje cotidiano y recibir orientación sobre que mecanismo debe usar y la herramienta le solicitará alguna información y datos para redactar una PQRS clara, completa y adecuada a su caso, además posteriormente le explicará como radicarla dependiendo de la entidad o empresa.
 
 ### 1.2 Usuarios
-¿Quién va a usarla? Describe a tu usuario ideal en una frase (ej. *"un arrendatario bogotano que le subieron el canon de arrendamiento más del límite legal"*). Recuerda que al final necesitas **al menos un usuario real** que la pruebe.
+Nuestro usuario ideal es una persona en Colombia que enfrenta un problema con una entidad pública o privada y necesita presentar una PQRS, pero no tiene tiempo y/o conocimientos jurídicos para redactarla correctamente.
 
 ### 1.3 Qué hace y qué NO hace (alcance)
 | ✅ Sí hace | ❌ No hace |
 | --- | --- |
-| [funcionalidad 1] | [fuera de alcance 1] |
-| [funcionalidad 2] | [fuera de alcance 2] |
+| [Guía y al usuario mediante preguntas sobre su situación. | No sustituye la asesoría jurídica profesional cuando el caso requiere un abogado. |
+| Redacta la PQRS con una estructura clara, formal y adecuada al caso. | No asegura que la entidad acepte la solicitud ni que la respuesta sea favorable para el usuario.|
+| [Identifica si se trata de una petición, queja, reclamo o solicitud de información. | No interpreta definitivamente la ley ni determina quién tiene la razón jurídicamente. |
+| Brinda acompañamiento y orientación sobre cómo radicar la PQRS ante la empresa o entidad correspondiente.| No presenta ni radica la PQRS directamente ante la entidad en nombre del usuario. |
 
 *Consejo de abogado: un alcance pequeño y perfecto vale más que uno grande y roto.*
 
 ### 1.4 Marco jurídico y fuentes
 ¿Qué normas alimentan tu herramienta? Lista tu corpus normativo (leyes, decretos, sentencias — debe ser **pequeño y público**):
-- [ ] Norma/sentencia 1: [nombre + enlace]
-- [ ] Norma/sentencia 2: [nombre + enlace]
+- [ ] Norma/sentencia 1: Ley 1755 de 2015, https://www.funcionpublica.gov.co/eva/gestornormativo/norma.php?i=65334
+- [ ] Norma/sentencia 2: Ley 1480 de 2011, https://www.funcionpublica.gov.co/eva/gestornormativo/norma.php?i=44306
+- [ ] Constitución Política, art. 23, https://www.constitucioncolombia.com/titulo-2/capitulo-1/articulo-23
 
 ### 1.5 Nombre y lema
 Un nombre corto para tu herramienta y una frase que explique qué hace (la usarás en la demo del día de presentaciones).
+Dilo Bien
 
+“Tú cuentas lo que pasó. Nosotros te ayudamos a decirlo bien.”
+
+Dilo bien te guía para identificar, redactar y radicar correctamente tu PQRS ante la entidad correspondiente.”
 ---
 
 ## 🗺️ Parte 2 — Plan de desarrollo
