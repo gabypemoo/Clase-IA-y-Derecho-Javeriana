@@ -33,9 +33,9 @@ Nuestro usuario ideal es una persona en Colombia que enfrenta un problema con un
 ### 1.3 Qué hace y qué NO hace (alcance)
 | ✅ Sí hace | ❌ No hace |
 | --- | --- |
-| [Guía y al usuario mediante preguntas sobre su situación. | No sustituye la asesoría jurídica profesional cuando el caso requiere un abogado. |
+| Guía y al usuario mediante preguntas sobre su situación. | No sustituye la asesoría jurídica profesional cuando el caso requiere un abogado. |
 | Redacta la PQRS con una estructura clara, formal y adecuada al caso. | No asegura que la entidad acepte la solicitud ni que la respuesta sea favorable para el usuario.|
-| [Identifica si se trata de una petición, queja, reclamo o solicitud de información. | No interpreta definitivamente la ley ni determina quién tiene la razón jurídicamente. |
+| Identifica si se trata de una petición, queja, reclamo o solicitud de información. | No interpreta definitivamente la ley ni determina quién tiene la razón jurídicamente. |
 | Brinda acompañamiento y orientación sobre cómo radicar la PQRS ante la empresa o entidad correspondiente.| No presenta ni radica la PQRS directamente ante la entidad en nombre del usuario. |
 
 *Consejo de abogado: un alcance pequeño y perfecto vale más que uno grande y roto.*
@@ -48,18 +48,21 @@ Nuestro usuario ideal es una persona en Colombia que enfrenta un problema con un
 
 ### 1.5 Nombre y lema
 Un nombre corto para tu herramienta y una frase que explique qué hace (la usarás en la demo del día de presentaciones).
+
 Dilo Bien
 
-“Tú cuentas lo que pasó. Nosotros te ayudamos a decirlo bien.”
+Tú cuentas lo que pasó. Nosotros te ayudamos a decirlo bien.”
 
-Dilo bien te guía para identificar, redactar y radicar correctamente tu PQRS ante la entidad correspondiente.”
+"Dilo bien" te guía para identificar, redactar y radicar correctamente tu PQRS ante la entidad correspondiente
+
+
 ---
 
 ## 🗺️ Parte 2 — Plan de desarrollo
 
 Marca cada hito cuando lo termines. Los hitos siguen las sesiones del curso.
 
-- [ ] **M0 — Descripción y plan** *(con Sesión 1)*: Partes 1 y 2 de este README completas.
+- [✅] **M0 — Descripción y plan** *(con Sesión 1)*: Partes 1 y 2 de este README completas.
 - [ ] **M1 — Asistente con instrucciones v1** *(Sesión 1–2)*: redactaste las instrucciones (prompt de sistema) de tu asistente y funcionan en una herramienta gratuita de chat.
 - [ ] **M2 — Casos de prueba documentados** *(Sesión 2)*: tienes al menos 5 casos de prueba (donde antes fallaba) con resultados guardados en `docs/casos-de-prueba.md`.
 - [ ] **M3 — Corpus conectado (RAG)** *(Sesión 3)*: tu asistente **cita la fuente** normativa que usa y no inventa. Corpus cargado en `corpus/`.
