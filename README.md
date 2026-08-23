@@ -2,9 +2,9 @@
 
 **Pontificia Universidad Javeriana · 2026-II · Docente: Pedro Ardila**
 
-> **Estudiante:** [escribe aquí tu nombre completo]
-> **Nombre del proyecto:** [escribe aquí el nombre de tu herramienta]
-> **Fecha de inicio:** [AAAA-MM-DD]
+> **Estudiante:** Eimee Gabriela Peña Moreno
+> **Nombre del proyecto:** TuPQRS
+> **Fecha de inicio:** [2026-08-23]
 
 ---
 
