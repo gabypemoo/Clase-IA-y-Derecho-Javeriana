@@ -72,8 +72,7 @@ Marca cada hito cuando lo termines. Los hitos siguen las sesiones del curso.
 ### Bitácora de avance semanal
 | Semana | Qué hice | Enlace/captura | Dudas para la clase |
 | --- | --- | --- | --- |
-| 1 | Definí el problema jurídico que busca resolver DiloBien, identifiqué al usuario ideal y establecí el alcance de la herramienta. También definí sus funcionalidades principales, el corpus normativo inicial y el nombre de la herramienta.|Mi trabajo está registrado en este repositorio y este es otro avance personal que hice 
-https://v0.app/ia-para-derecho/chat/dilobien-jAUHpiIQM8Q| ¿El corpus normativo seleccionado es suficiente para una primera versión? ¿Qué tan específica debe ser la herramienta al orientar al usuario sobre cómo radicar una PQRS?|
+| 1 | Definí el problema jurídico que busca resolver DiloBien, identifiqué al usuario ideal y establecí el alcance de la herramienta. También definí sus funcionalidades principales, el corpus normativo inicial y el nombre de la herramienta.|Mi trabajo está registrado en este repositorio y este es otro avance personal que hice https://v0.app/ia-para-derecho/chat/dilobien-jAUHpiIQM8Q| ¿El corpus normativo seleccionado es suficiente para una primera versión? ¿Qué tan específica debe ser la herramienta al orientar al usuario sobre cómo radicar una PQRS?|
 | 2 | | | |
 | 3 | | | |
 | 4 | | | |
