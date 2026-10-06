@@ -63,10 +63,10 @@ Tú cuentas lo que pasó. Nosotros te ayudamos a decirlo bien.”
 Marca cada hito cuando lo termines. Los hitos siguen las sesiones del curso.
 
 - [✅] **M0 — Descripción y plan** *(con Sesión 1)*: Partes 1 y 2 de este README completas.
-- [ ] **M1 — Asistente con instrucciones v1** *(Sesión 1–2)*: redactaste las instrucciones (prompt de sistema) de tu asistente y funcionan en una herramienta gratuita de chat.
-- [ ] **M2 — Casos de prueba documentados** *(Sesión 2)*: tienes al menos 5 casos de prueba (donde antes fallaba) con resultados guardados en `docs/casos-de-prueba.md`.
-- [ ] **M3 — Corpus conectado (RAG)** *(Sesión 3)*: tu asistente **cita la fuente** normativa que usa y no inventa. Corpus cargado en `corpus/`.
-- [ ] **M4 — Interfaz web desplegada** *(Sesión 4)*: tu herramienta tiene **URL pública** (ver Parte 4) y tu primer usuario real la probó con evidencia.
+- [✅] **M1 — Asistente con instrucciones v1** *(Sesión 1–2)*: redactaste las instrucciones (prompt de sistema) de tu asistente y funcionan en una herramienta gratuita de chat.
+- [[✅]] **M2 — Casos de prueba documentados** *(Sesión 2)*: tienes al menos 5 casos de prueba (donde antes fallaba) con resultados guardados en `docs/casos-de-prueba.md`.
+- [[✅] ] **M3 — Corpus conectado (RAG)** *(Sesión 3)*: tu asistente **cita la fuente** normativa que usa y no inventa. Corpus cargado en `corpus/`.
+- [ [✅]] **M4 — Interfaz web desplegada** *(Sesión 4)*: tu herramienta tiene **URL pública** (ver Parte 4) y tu primer usuario real la probó con evidencia.
 - [ ] **M5 — Análisis crítico y demo** *(Sesión 5)*: Parte 7 completada + presentación de 5 minutos.
 
 | Semana | Qué hice                                                                                                                                                                                                                                                                                                                                      | Enlace/captura                                                                                                                                                                                               | Dudas para la clase                                                                                                                                                       |
@@ -199,7 +199,7 @@ Responde con total honestidad — aquí es donde demuestras tu criterio jurídic
 
 Requisitos de entrega del curso — todos deben estar ✅:
 
-- [ ] 🔗 **Solución funcionando**: resuelve el problema jurídico y está desplegada con URL pública.
+- [✅] 🔗 **Solución funcionando**: resuelve el problema jurídico y está desplegada con URL pública.
 - [ ] 👤 **Usuario real**: al menos una persona externa al curso la usó, con evidencia (video corto o testimonio). Guarda la evidencia en `docs/evidencia-usuario.md`.
 - [ ] 📦 **Repositorio con historial**: este repo muestra tus avances semanales (commits + bitácora).
 - [ ] 🧠 **Análisis crítico**: Parte 7 completada.
