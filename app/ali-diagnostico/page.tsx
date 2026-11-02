@@ -76,6 +76,14 @@ export default async function AliDiagnosticPage() {
                         {tool.description}
                       </p>
                     )}
+                    <details className="mt-3">
+                      <summary className="cursor-pointer text-sm font-medium text-slate-700">
+                        Ver parámetros técnicos
+                      </summary>
+                      <pre className="mt-2 overflow-x-auto rounded-lg bg-slate-950 p-3 text-xs leading-5 text-slate-100">
+                        {JSON.stringify(tool.inputSchema, null, 2)}
+                      </pre>
+                    </details>
                   </li>
                 ))}
               </ul>
