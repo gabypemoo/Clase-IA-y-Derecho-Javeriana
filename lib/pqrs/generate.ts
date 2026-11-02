@@ -80,6 +80,15 @@ export async function generatePqrs(
     body: result.body,
     sources: sourcesFor(kind, data),
     filingChannels: [],
+    aliResearch: result.aliResearch && typeof result.aliResearch === 'object'
+      ? result.aliResearch
+      : {
+          status: 'unavailable',
+          tool: 'buscar_normas',
+          query: '',
+          rawResults: '',
+          note: 'La respuesta del servidor no incluyó información de la consulta a ALI.',
+        },
   }
 }
 
