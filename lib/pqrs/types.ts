@@ -1,3 +1,4 @@
+
 export type EntityKind =
   | 'empresa-privada'
   | 'entidad-publica'
@@ -15,9 +16,16 @@ export type PqrsKind =
 
 export type ContactedStatus = 'no' | 'si-sin-respuesta' | 'si-con-respuesta'
 
+export interface AnalysisAnswer {
+  questionId: string
+  question: string
+  answer: string
+}
+
 export interface PqrsDraftData {
   /** Paso 1 */
   story: string
+  analysisAnswers: AnalysisAnswer[]
   /** Paso 2 */
   entityKind: EntityKind | ''
   entityName: string
@@ -44,24 +52,17 @@ export interface LegalSource {
   summary: string
 }
 
-/**
- * Resultado de la generación. Hoy se construye localmente en
- * `lib/pqrs/generate.ts`; más adelante puede provenir de un LLM
- * (OpenRouter) orquestado con LangChain/LangGraph + RAG.
- */
 export interface GeneratedPqrs {
-  /** Tipo finalmente identificado (nunca 'no-seguro'). */
   resolvedKind: Exclude<PqrsKind, 'no-seguro'>
   subject: string
   body: string
-  /** Normas citadas como apoyo, siempre desde el corpus verificado. */
   sources: LegalSource[]
-  /** Canales de radicación verificados. Vacío = mostrar aviso genérico. */
   filingChannels: string[]
 }
 
 export const EMPTY_DRAFT: PqrsDraftData = {
   story: '',
+  analysisAnswers: [],
   entityKind: '',
   entityName: '',
   city: '',
