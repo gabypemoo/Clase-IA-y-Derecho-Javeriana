@@ -21,9 +21,13 @@ export async function GET(request: Request) {
     );
   }
 
-  if (!process.env.ALI_MCP_API_KEY) {
+  const configuredAliKey = process.env.VERCEL_ENV === "preview"
+    ? process.env.ALI_MCP_API_KEY_PREVIEW
+    : process.env.ALI_MCP_API_KEY;
+
+  if (!configuredAliKey) {
     return NextResponse.json(
-      { ok: false, error: "Falta configurar ALI_MCP_API_KEY en el servidor." },
+      { ok: false, error: "Falta configurar la credencial de ALI para este entorno." },
       { status: 503 },
     );
   }
