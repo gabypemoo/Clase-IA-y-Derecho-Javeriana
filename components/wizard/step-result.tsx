@@ -12,6 +12,7 @@ import {
   Info,
   Pencil,
   RefreshCw,
+  Sparkles,
 } from 'lucide-react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
@@ -33,6 +34,12 @@ export function StepResult() {
   const [editing, setEditing] = useState(false)
   const [copied, setCopied] = useState(false)
   const [showChannels, setShowChannels] = useState(false)
+
+  const [correctionInstruction, setCorrectionInstruction] = useState('')
+  const [correcting, setCorrecting] = useState(false)
+  const [correctionError, setCorrectionError] = useState('')
+  const [correctionSuccess, setCorrectionSuccess] = useState(false)
+
   const editorRef = useRef<HTMLTextAreaElement>(null)
 
   async function createPqrs() {
@@ -40,6 +47,8 @@ export function StepResult() {
     setError('')
     setGenerated(null)
     setDraft('')
+    setCorrectionError('')
+    setCorrectionSuccess(false)
 
     try {
       const result = await generatePqrs(data)
@@ -74,6 +83,53 @@ export function StepResult() {
       setCopied(true)
     } catch {
       setCopied(false)
+    }
+  }
+
+  async function correctDraft() {
+    if (!correctionInstruction.trim() || !draft.trim()) return
+
+    setCorrecting(true)
+    setCorrectionError('')
+    setCorrectionSuccess(false)
+
+    try {
+      const response = await fetch('/api/pqrs/correct', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          draft,
+          instruction: correctionInstruction.trim(),
+        }),
+      })
+
+      const result = await response.json()
+
+      if (!response.ok) {
+        throw new Error(
+          result?.error || 'No fue posible corregir la PQRS. Inténtalo nuevamente.',
+        )
+      }
+
+      if (typeof result?.body !== 'string' || !result.body.trim()) {
+        throw new Error('La inteligencia artificial no devolvió un documento válido.')
+      }
+
+      setDraft(result.body.trim())
+      setCorrectionInstruction('')
+      setCorrectionSuccess(true)
+      setEditing(false)
+      setCopied(false)
+    } catch (err) {
+      setCorrectionError(
+        err instanceof Error
+          ? err.message
+          : 'Ocurrió un error al corregir la PQRS.',
+      )
+    } finally {
+      setCorrecting(false)
     }
   }
 
@@ -137,17 +193,19 @@ export function StepResult() {
                 {editing ? <Eye data-icon="inline-start" /> : <Pencil data-icon="inline-start" />}
                 {editing ? 'Ver documento' : 'Editar'}
               </Button>
+
               <Button
                 type="button"
                 variant="outline"
                 size="lg"
                 className="h-10 px-4"
                 onClick={createPqrs}
-                disabled={loading}
+                disabled={loading || correcting}
               >
                 <RefreshCw data-icon="inline-start" />
                 Regenerar
               </Button>
+
               <Button
                 type="button"
                 variant="outline"
@@ -158,6 +216,7 @@ export function StepResult() {
                 {copied ? <Check data-icon="inline-start" /> : <Copy data-icon="inline-start" />}
                 {copied ? 'Copiado' : 'Copiar PQRS'}
               </Button>
+
               <Button
                 type="button"
                 size="lg"
@@ -173,7 +232,10 @@ export function StepResult() {
               <Textarea
                 ref={editorRef}
                 value={draft}
-                onChange={(event) => setDraft(event.target.value)}
+                onChange={(event) => {
+                  setDraft(event.target.value)
+                  setCorrectionSuccess(false)
+                }}
                 aria-label="Editar el texto de la PQRS"
                 className="min-h-[32rem] font-mono text-sm leading-relaxed"
               />
@@ -184,6 +246,62 @@ export function StepResult() {
                 </pre>
               </article>
             )}
+
+            <div className="flex flex-col gap-3 rounded-xl border border-border bg-background p-5">
+              <div className="flex items-center gap-2">
+                <Sparkles className="size-5 text-primary" />
+                <h2 className="font-semibold">Asistente de correcciones</h2>
+              </div>
+
+              <p className="text-sm leading-relaxed text-muted-foreground">
+                ¿Quieres mejorar tu PQRS? Escribe qué deseas cambiar y la
+                inteligencia artificial actualizará el documento completo.
+              </p>
+
+              <Textarea
+                value={correctionInstruction}
+                onChange={(event) => {
+                  setCorrectionInstruction(event.target.value)
+                  setCorrectionError('')
+                  setCorrectionSuccess(false)
+                }}
+                placeholder="Ej. Haz que el lenguaje sea más formal y jurídico, pero conserva la claridad."
+                aria-label="Instrucciones para corregir la PQRS"
+                className="min-h-24"
+                disabled={correcting}
+              />
+
+              {correctionError ? (
+                <Alert variant="destructive">
+                  <Info />
+                  <AlertDescription>{correctionError}</AlertDescription>
+                </Alert>
+              ) : null}
+
+              {correctionSuccess ? (
+                <Alert>
+                  <Check />
+                  <AlertDescription>
+                    Tu PQRS fue actualizada. Revisa el documento antes de utilizarlo.
+                  </AlertDescription>
+                </Alert>
+              ) : null}
+
+              <Button
+                type="button"
+                onClick={correctDraft}
+                disabled={!correctionInstruction.trim() || correcting || loading}
+                className="w-full sm:w-fit"
+              >
+                <Sparkles data-icon="inline-start" />
+                {correcting ? 'Corrigiendo documento...' : 'Corregir con IA'}
+              </Button>
+
+              <p className="text-xs leading-relaxed text-muted-foreground">
+                La IA debe conservar los hechos y datos proporcionados. Revisa
+                siempre el resultado y verifica que los cambios correspondan a tu caso.
+              </p>
+            </div>
           </>
         ) : null}
 
