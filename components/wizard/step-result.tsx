@@ -94,7 +94,7 @@ export function StepResult() {
     setCorrectionSuccess(false)
 
     try {
-      const response = await fetch('/api/pqrs/correct', {
+      const response = await fetch('/api/correct', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -377,3 +377,4 @@ export function StepResult() {
     </div>
   )
 }
+
