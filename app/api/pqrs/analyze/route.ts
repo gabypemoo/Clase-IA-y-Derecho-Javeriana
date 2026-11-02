@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server'
 import type { PqrsDraftData } from '@/lib/pqrs/types'
 
 export const runtime = 'nodejs'
+export const maxDuration = 60
 
 const SYSTEM_PROMPT = `
 Eres el asistente de análisis de DiloBien, una herramienta para ciudadanos colombianos que necesitan preparar sus propias PQRS.
@@ -149,17 +150,22 @@ async function requestOpenRouter(
         max_tokens: 1200,
         response_format: { type: 'json_object' },
       }),
-      signal: AbortSignal.timeout(55000),
+      signal: AbortSignal.timeout(18000),
     })
 
-    if (lastResponse.ok || ![429, 500, 502, 503, 504].includes(lastResponse.status) || attempt === maxAttempts - 1) {
+    if (
+      lastResponse.ok ||
+      ![429, 500, 502, 503, 504].includes(lastResponse.status) ||
+      attempt === maxAttempts - 1
+    ) {
       return lastResponse
     }
 
     const retryAfter = Number(lastResponse.headers.get('retry-after'))
-    const waitMs = Number.isFinite(retryAfter) && retryAfter > 0
-      ? Math.min(retryAfter * 1000, 2500)
-      : 1200
+    const waitMs =
+      Number.isFinite(retryAfter) && retryAfter > 0
+        ? Math.min(retryAfter * 1000, 2500)
+        : 1200
 
     await new Promise((resolve) => setTimeout(resolve, waitMs))
   }
@@ -236,8 +242,12 @@ export async function POST(request: Request) {
     // Si el modelo principal está temporalmente saturado, se puede usar un
     // modelo alternativo configurado en Vercel sin cambiar el código.
     const fallbackModel = process.env.OPENROUTER_FALLBACK_MODEL?.trim()
-    if (!response.ok && fallbackModel && fallbackModel !== model &&
-        [429, 500, 502, 503, 504].includes(response.status)) {
+    if (
+      !response.ok &&
+      fallbackModel &&
+      fallbackModel !== model &&
+      [429, 500, 502, 503, 504].includes(response.status)
+    ) {
       console.warn('DiloBien: modelo principal no disponible; intentando modelo alternativo.', {
         primaryModel: model,
         status: response.status,
@@ -339,7 +349,7 @@ export async function POST(request: Request) {
       analysis = parseAnalysis(content)
     } catch {
       console.error('DiloBien: el contenido recibido no es JSON válido.', {
-        model,
+        model: usedModel,
         finishReason: choice?.finish_reason ?? null,
         contentLength: content.length,
       })
@@ -357,7 +367,7 @@ export async function POST(request: Request) {
 
     if (!validated) {
       console.error('DiloBien: estructura de análisis inválida.', {
-        model,
+        model: usedModel,
         finishReason: choice?.finish_reason ?? null,
       })
 
