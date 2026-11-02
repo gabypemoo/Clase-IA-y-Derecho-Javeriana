@@ -6,6 +6,31 @@ import { callAliTool } from '@/lib/ali/mcp-client'
 export const runtime = 'nodejs'
 export const maxDuration = 120
 
+async function requestOpenRouter(
+  apiKey: string,
+  model: string,
+  messages: Array<{ role: 'system' | 'user'; content: string }>,
+  timeoutMs: number,
+) {
+  return fetch('https://openrouter.ai/api/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+      'HTTP-Referer': 'https://dilobien.vercel.app',
+      'X-OpenRouter-Title': 'DiloBien',
+    },
+    body: JSON.stringify({
+      model,
+      messages,
+      temperature: 0.2,
+      max_tokens: 4000,
+    }),
+    signal: AbortSignal.timeout(timeoutMs),
+  })
+}
+
+
 function formatContacted(value?: string) {
   switch (value) {
     case 'si-sin-respuesta':
@@ -172,34 +197,28 @@ Devuelve únicamente el documento completo de la PQRS.
       estadoConsultaALI: aliStatus,
     }
 
-    const response = await fetch(
-      'https://openrouter.ai/api/v1/chat/completions',
-      {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          'Content-Type': 'application/json',
-          'HTTP-Referer': 'https://dilobien.vercel.app',
-          'X-OpenRouter-Title': 'DiloBien',
-        },
-        body: JSON.stringify({
-          model,
-          messages: [
-            {
-              role: 'system',
-              content: systemPrompt,
-            },
-            {
-              role: 'user',
-              content: JSON.stringify(userData),
-            },
-          ],
-          temperature: 0.2,
-          max_tokens: 4000,
-        }),
-        signal: AbortSignal.timeout(110000),
-      },
-    )
+    const messages = [
+      { role: 'system' as const, content: systemPrompt },
+      { role: 'user' as const, content: JSON.stringify(userData) },
+    ]
+
+    let response = await requestOpenRouter(apiKey, model, messages, 45000)
+    let usedModel = model
+    const fallbackModel =
+      process.env.OPENROUTER_FALLBACK_MODEL?.trim() || 'openrouter/free'
+
+    if (
+      !response.ok &&
+      fallbackModel !== model &&
+      [429, 500, 502, 503, 504].includes(response.status)
+    ) {
+      console.warn('DiloBien: modelo principal no disponible en generación; intentando alternativa.', {
+        primaryModel: model,
+        status: response.status,
+      })
+      response = await requestOpenRouter(apiKey, fallbackModel, messages, 65000)
+      usedModel = fallbackModel
+    }
 
     const rawResponse = await response.text()
 
@@ -210,7 +229,7 @@ Devuelve únicamente el documento completo de la PQRS.
     } catch {
       console.error('DiloBien: respuesta no JSON de OpenRouter.', {
         status: response.status,
-        model,
+        model: usedModel,
         responseLength: rawResponse.length,
       })
 
@@ -223,7 +242,7 @@ Devuelve únicamente el documento completo de la PQRS.
     if (!response.ok) {
       console.error('DiloBien: error de OpenRouter.', {
         status: response.status,
-        model,
+        model: usedModel,
         error: result?.error?.message?.slice?.(0, 250),
       })
 
@@ -255,7 +274,7 @@ Devuelve únicamente el documento completo de la PQRS.
 
     if (choice?.finish_reason === 'length') {
       console.error('DiloBien: generación incompleta por límite de tokens.', {
-        model: result?.model || model,
+        model: result?.model || usedModel,
         usage: result?.usage,
       })
 
@@ -267,7 +286,7 @@ Devuelve únicamente el documento completo de la PQRS.
 
     if (!generatedText.trim()) {
       console.error('DiloBien: OpenRouter no devolvió texto.', {
-        model: result?.model || model,
+        model: result?.model || usedModel,
         finishReason: choice?.finish_reason,
       })
 
