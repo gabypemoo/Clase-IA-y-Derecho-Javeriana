@@ -1,6 +1,7 @@
 
 import { NextResponse } from 'next/server'
 import type { PqrsDraftData } from '@/lib/pqrs/types'
+import { callAliTool } from '@/lib/ali/mcp-client'
 
 export const runtime = 'nodejs'
 export const maxDuration = 120
@@ -46,6 +47,37 @@ export async function POST(request: Request) {
         { error: 'Debes describir tu problema.' },
         { status: 400 },
       )
+    }
+
+    // ALI aporta evidencia jurídica. No enviamos identificadores ni datos de contacto.
+    let aliEvidence = ''
+    let aliStatus: 'available' | 'unavailable' = 'unavailable'
+
+    try {
+      const legalQuery = [
+        data.story,
+        data.entityKind ? `Tipo de entidad: ${data.entityKind}` : '',
+        data.pqrsKind ? `Tipo de PQRS: ${data.pqrsKind}` : '',
+        data.expectedOutcome ? `Resultado solicitado: ${data.expectedOutcome}` : '',
+      ].filter(Boolean).join('\\n').slice(0, 5000)
+
+      const research = await callAliTool('buscar_normas', {
+        query: legalQuery,
+        limit: 5,
+        excluir_derogadas: true,
+        source: 'suin',
+      })
+
+      if (!research.isError && research.text.trim()) {
+        aliEvidence = research.text
+        aliStatus = 'available'
+      } else {
+        console.error('DiloBien: ALI no devolvió evidencia utilizable en buscar_normas.')
+      }
+    } catch (error) {
+      console.error('DiloBien: consulta ALI no disponible para esta generación.', {
+        errorName: error instanceof Error ? error.name : 'UnknownError',
+      })
     }
 
     const attachments =
