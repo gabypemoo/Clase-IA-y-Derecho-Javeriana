@@ -56,17 +56,16 @@ DATOS DEL CASO:
 INSTRUCCIONES:
 1. Organiza los hechos cronológicamente y no inventes información.
 2. Formula solicitudes concretas que correspondan a los hechos.
-3. Incluye asunto, destinatario, hechos, solicitudes, anexos y datos
-   de contacto cuando estén disponibles.
+3. Incluye asunto, destinatario, hechos, solicitudes, anexos y datos de contacto cuando estén disponibles.
 4. Si falta información, utiliza una indicación entre corchetes.
 5. No inventes leyes, artículos, sentencias ni citas jurídicas.
 6. No afirmes que una norma aplica si no puedes verificarlo.
 7. No inventes números de radicado, fechas ni pruebas.
-8. No prometas resultados ni garantices que la entidad concederá
-   lo solicitado.
-9. Devuelve únicamente el texto completo de la PQRS, sin comentarios
-   adicionales ni explicaciones sobre tu proceso.
+8. No prometas resultados ni garantices que la entidad concederá lo solicitado.
+9. Devuelve únicamente el texto completo de la PQRS.
 `
+
+    console.log('Modelo enviado a OpenRouter:', model)
 
     const response = await fetch(
       'https://openrouter.ai/api/v1/chat/completions',
@@ -99,6 +98,11 @@ INSTRUCCIONES:
 
     const result = await response.json()
 
+    console.log(
+      'OpenRouter response:',
+      JSON.stringify(result).slice(0, 3000),
+    )
+
     if (!response.ok) {
       console.error('Error de OpenRouter:', result)
       return NextResponse.json(
@@ -112,6 +116,8 @@ INSTRUCCIONES:
     }
 
     const generatedText = result?.choices?.[0]?.message?.content
+
+    console.log('Generated text:', generatedText)
 
     if (typeof generatedText !== 'string' || !generatedText.trim()) {
       return NextResponse.json(
