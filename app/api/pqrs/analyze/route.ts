@@ -149,7 +149,7 @@ async function requestOpenRouter(
         temperature: 0.1,
         max_tokens: 1200,
       }),
-      signal: AbortSignal.timeout(18000),
+      signal: AbortSignal.timeout(12000),
     })
 
     if (
