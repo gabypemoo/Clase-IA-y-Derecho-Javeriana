@@ -172,7 +172,7 @@ export async function POST(request: Request) {
             },
           ],
           temperature: 0.1,
-          max_tokens: 700,
+          max_tokens: 1600,
           response_format: { type: 'json_object' },
         }),
         signal: AbortSignal.timeout(30000),
