@@ -65,3 +65,48 @@ export async function listAliMcpTools() {
     }));
   });
 }
+
+
+export interface AliToolResult {
+  text: string;
+  isError: boolean;
+}
+
+/**
+ * Ejecuta una herramienta anunciada por ALI. Los nombres y argumentos
+ * se mantienen explícitos para evitar llamadas arbitrarias desde el cliente.
+ */
+export async function callAliTool(
+  name: string,
+  args: Record<string, unknown>,
+): Promise<AliToolResult> {
+  const allowedTools = new Set([
+    "buscar_normas",
+    "texto_vigente",
+    "leer_norma_completa",
+    "consulta_grafo",
+    "estadistica_jurisprudencial",
+  ]);
+
+  if (!allowedTools.has(name)) {
+    throw new Error("Herramienta ALI no permitida.");
+  }
+
+  return withAliMcpClient(async (client) => {
+    const response = await client.callTool({ name, arguments: args });
+    const text = Array.isArray(response.content)
+      ? response.content
+          .map((item) => {
+            if (item.type === "text") return item.text;
+            return "";
+          })
+          .filter(Boolean)
+          .join("\n")
+      : "";
+
+    return {
+      text: text.slice(0, 24_000),
+      isError: Boolean(response.isError),
+    };
+  });
+}
