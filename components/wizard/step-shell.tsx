@@ -1,3 +1,4 @@
+
 'use client'
 
 import type { ReactNode } from 'react'
@@ -10,6 +11,8 @@ interface StepShellProps {
   description?: string
   children: ReactNode
   continueLabel?: string
+  continueDisabled?: boolean
+  onContinue?: () => void | Promise<void>
 }
 
 export function StepShell({
@@ -17,6 +20,8 @@ export function StepShell({
   description,
   children,
   continueLabel = 'Continuar',
+  continueDisabled = false,
+  onContinue,
 }: StepShellProps) {
   const { step, next, back, canContinue } = useWizard()
 
@@ -24,7 +29,14 @@ export function StepShell({
     <form
       onSubmit={(event) => {
         event.preventDefault()
-        if (canContinue) next()
+
+        if (!canContinue || continueDisabled) return
+
+        if (onContinue) {
+          void onContinue()
+        } else {
+          next()
+        }
       }}
       className="flex flex-col gap-8 rounded-2xl border border-border bg-card p-6 sm:p-8"
     >
@@ -61,7 +73,7 @@ export function StepShell({
           type="submit"
           size="lg"
           className="h-11 px-5 text-base"
-          disabled={!canContinue}
+          disabled={!canContinue || continueDisabled}
         >
           {continueLabel}
           <ArrowRight data-icon="inline-end" />
