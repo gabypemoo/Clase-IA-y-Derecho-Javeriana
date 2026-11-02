@@ -148,7 +148,6 @@ async function requestOpenRouter(
         messages,
         temperature: 0.1,
         max_tokens: 1200,
-        response_format: { type: 'json_object' },
       }),
       signal: AbortSignal.timeout(18000),
     })
@@ -241,7 +240,8 @@ export async function POST(request: Request) {
 
     // Si el modelo principal está temporalmente saturado, se puede usar un
     // modelo alternativo configurado en Vercel sin cambiar el código.
-    const fallbackModel = process.env.OPENROUTER_FALLBACK_MODEL?.trim()
+    const fallbackModel =
+      process.env.OPENROUTER_FALLBACK_MODEL?.trim() || 'openrouter/free'
     if (
       !response.ok &&
       fallbackModel &&
