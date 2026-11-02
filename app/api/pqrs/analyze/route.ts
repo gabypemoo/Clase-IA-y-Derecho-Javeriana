@@ -26,7 +26,7 @@ REGLAS:
 13. El resumen debe tener máximo 60 palabras.
 14. No repitas frases ni agregues explicaciones fuera del JSON.
 
-Devuelve exclusivamente este objeto JSON:
+Devuelve exclusivamente un objeto JSON con esta estructura:
 
 {
   "summary": "Resumen breve del problema",
@@ -52,9 +52,7 @@ function recoverSufficientResult(content: string) {
     normalized.includes('no se requieren más preguntas') ||
     normalized.includes('no se requieren mas preguntas')
 
-  if (!confirmsSufficiency) {
-    return null
-  }
+  if (!confirmsSufficiency) return null
 
   return {
     summary:
@@ -64,12 +62,44 @@ function recoverSufficientResult(content: string) {
   }
 }
 
+function extractContent(message: any): string | null {
+  const content = message?.content
+
+  if (typeof content === 'string' && content.trim()) {
+    return content.trim()
+  }
+
+  // Algunos proveedores pueden devolver contenido por partes.
+  if (Array.isArray(content)) {
+    const text = content
+      .filter((part: any) => typeof part?.text === 'string')
+      .map((part: any) => part.text)
+      .join('\n')
+      .trim()
+
+    if (text) return text
+  }
+
+  return null
+}
+
+function parseAnalysis(content: string) {
+  const cleaned = content
+    .trim()
+    .replace(/^```(?:json)?\s*/i, '')
+    .replace(/\s*```$/, '')
+
+  return JSON.parse(cleaned)
+}
+
 export async function POST(request: Request) {
   try {
     const apiKey = process.env.OPENROUTER_API_KEY
     const model = process.env.OPENROUTER_MODEL
 
     if (!apiKey || !model) {
+      console.error('DiloBien: faltan variables de entorno de OpenRouter.')
+
       return NextResponse.json(
         {
           error:
@@ -79,7 +109,16 @@ export async function POST(request: Request) {
       )
     }
 
-    const data = (await request.json()) as Partial<PqrsDraftData>
+    let data: Partial<PqrsDraftData>
+
+    try {
+      data = (await request.json()) as Partial<PqrsDraftData>
+    } catch {
+      return NextResponse.json(
+        { error: 'No fue posible leer la información enviada.' },
+        { status: 400 },
+      )
+    }
 
     if (!data.story?.trim() || data.story.trim().length < 20) {
       return NextResponse.json(
@@ -103,7 +142,7 @@ export async function POST(request: Request) {
           }))
       : []
 
-    const response = await fetch(
+    const openRouterResponse = await fetch(
       'https://openrouter.ai/api/v1/chat/completions',
       {
         method: 'POST',
@@ -140,27 +179,68 @@ export async function POST(request: Request) {
       },
     )
 
-    const result = await response.json()
+    // Leemos primero el texto para poder diagnosticar respuestas
+    // que no sean JSON válido.
+    const rawResponse = await openRouterResponse.text()
 
-    if (!response.ok) {
-      console.error('Error de OpenRouter:', result?.error?.message)
+    let result: any
+
+    try {
+      result = JSON.parse(rawResponse)
+    } catch {
+      console.error('DiloBien: OpenRouter devolvió una respuesta no JSON.', {
+        status: openRouterResponse.status,
+        model,
+        responseLength: rawResponse.length,
+      })
 
       return NextResponse.json(
         {
           error:
-            'No fue posible analizar tu situación. Intenta nuevamente.',
+            'El servicio de inteligencia artificial respondió de forma inesperada. Intenta nuevamente.',
         },
         { status: 502 },
       )
     }
 
-    const content = result?.choices?.[0]?.message?.content
+    if (!openRouterResponse.ok) {
+      console.error('DiloBien: error devuelto por OpenRouter.', {
+        status: openRouterResponse.status,
+        model,
+        errorCode: result?.error?.code ?? null,
+        errorMessage:
+          typeof result?.error?.message === 'string'
+            ? result.error.message.slice(0, 300)
+            : 'Sin descripción',
+      })
 
-    if (typeof content !== 'string' || !content.trim()) {
       return NextResponse.json(
         {
           error:
-            'La inteligencia artificial no devolvió contenido. Intenta nuevamente.',
+            openRouterResponse.status === 429
+              ? 'El modelo de inteligencia artificial está ocupado o alcanzó su límite temporal. Espera un momento e inténtalo nuevamente.'
+              : 'No fue posible conectar con el servicio de inteligencia artificial. Intenta nuevamente.',
+        },
+        { status: 502 },
+      )
+    }
+
+    const choice = result?.choices?.[0]
+    const content = extractContent(choice?.message)
+
+    if (!content) {
+      console.error('DiloBien: OpenRouter no devolvió contenido.', {
+        model,
+        finishReason: choice?.finish_reason ?? null,
+        refusal: choice?.message?.refusal ?? null,
+        contentType: typeof choice?.message?.content,
+        usage: result?.usage ?? null,
+      })
+
+      return NextResponse.json(
+        {
+          error:
+            'La inteligencia artificial no devolvió un análisis. Intenta nuevamente.',
         },
         { status: 502 },
       )
@@ -169,24 +249,25 @@ export async function POST(request: Request) {
     let analysis: any
 
     try {
-      const cleaned = content
-        .trim()
-        .replace(/^```(?:json)?\s*/i, '')
-        .replace(/\s*```$/, '')
-
-      analysis = JSON.parse(cleaned)
+      analysis = parseAnalysis(content)
     } catch {
-      // Recuperamos únicamente el caso en que el propio texto
-      // confirma expresamente que no hacen falta más preguntas.
       const recovered = recoverSufficientResult(content)
 
       if (recovered) {
+        console.warn(
+          'DiloBien: se recuperó una respuesta que confirmó información suficiente.',
+          { model },
+        )
+
         return NextResponse.json(recovered)
       }
 
-      console.error(
-        'OpenRouter devolvió una respuesta JSON incompleta o inválida.',
-      )
+      console.error('DiloBien: respuesta JSON inválida o incompleta.', {
+        model,
+        finishReason: choice?.finish_reason ?? null,
+        contentLength: content.length,
+        usage: result?.usage ?? null,
+      })
 
       return NextResponse.json(
         {
@@ -203,7 +284,10 @@ export async function POST(request: Request) {
       typeof analysis.sufficient !== 'boolean' ||
       !Array.isArray(analysis.questions)
     ) {
-      console.error('OpenRouter devolvió una estructura inválida.')
+      console.error('DiloBien: estructura de análisis inválida.', {
+        model,
+        finishReason: choice?.finish_reason ?? null,
+      })
 
       return NextResponse.json(
         {
@@ -241,6 +325,11 @@ export async function POST(request: Request) {
     }
 
     if (questions.length === 0) {
+      console.error(
+        'DiloBien: el modelo indicó información insuficiente, pero no formuló preguntas.',
+        { model },
+      )
+
       return NextResponse.json(
         {
           error:
@@ -256,12 +345,21 @@ export async function POST(request: Request) {
       sufficient: false,
     })
   } catch (error) {
-    console.error('Error al analizar PQRS:', error)
+    const isTimeout =
+      error instanceof Error &&
+      (error.name === 'TimeoutError' || error.name === 'AbortError')
+
+    console.error('DiloBien: error al analizar PQRS.', {
+      errorName: error instanceof Error ? error.name : 'UnknownError',
+      errorMessage:
+        error instanceof Error ? error.message.slice(0, 300) : 'Error desconocido',
+    })
 
     return NextResponse.json(
       {
-        error:
-          'Ocurrió un error al analizar tu situación. Intenta nuevamente.',
+        error: isTimeout
+          ? 'La inteligencia artificial está tardando demasiado. Intenta nuevamente.'
+          : 'Ocurrió un error al analizar tu situación. Intenta nuevamente.',
       },
       { status: 500 },
     )
