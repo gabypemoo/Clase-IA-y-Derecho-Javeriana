@@ -124,6 +124,49 @@ function validateAnalysis(analysis: any) {
   }
 }
 
+
+async function requestOpenRouter(
+  apiKey: string,
+  model: string,
+  messages: Array<{ role: 'system' | 'user'; content: string }>,
+) {
+  const maxAttempts = 2
+  let lastResponse: Response | null = null
+
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    lastResponse = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+        'HTTP-Referer': 'https://dilobien.vercel.app',
+        'X-OpenRouter-Title': 'DiloBien',
+      },
+      body: JSON.stringify({
+        model,
+        messages,
+        temperature: 0.1,
+        max_tokens: 1200,
+        response_format: { type: 'json_object' },
+      }),
+      signal: AbortSignal.timeout(55000),
+    })
+
+    if (lastResponse.ok || ![429, 500, 502, 503, 504].includes(lastResponse.status) || attempt === maxAttempts - 1) {
+      return lastResponse
+    }
+
+    const retryAfter = Number(lastResponse.headers.get('retry-after'))
+    const waitMs = Number.isFinite(retryAfter) && retryAfter > 0
+      ? Math.min(retryAfter * 1000, 2500)
+      : 1200
+
+    await new Promise((resolve) => setTimeout(resolve, waitMs))
+  }
+
+  return lastResponse!
+}
+
 export async function POST(request: Request) {
   try {
     const apiKey = process.env.OPENROUTER_API_KEY
@@ -174,40 +217,34 @@ export async function POST(request: Request) {
           }))
       : []
 
-    const response = await fetch(
-      'https://openrouter.ai/api/v1/chat/completions',
+    const messages = [
+      { role: 'system' as const, content: SYSTEM_PROMPT },
       {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          'Content-Type': 'application/json',
-          'HTTP-Referer': 'https://dilobien.vercel.app',
-          'X-OpenRouter-Title': 'DiloBien',
-        },
-        body: JSON.stringify({
-          model,
-          messages: [
-            {
-              role: 'system',
-              content: SYSTEM_PROMPT,
-            },
-            {
-              role: 'user',
-              content: JSON.stringify({
-                relato: data.story,
-                tipoDeEntidad: data.entityKind,
-                nombreDeEntidad: data.entityName,
-                respuestasAnteriores: answers,
-              }),
-            },
-          ],
-          temperature: 0.1,
-          max_tokens: 1600,
-          response_format: { type: 'json_object' },
+        role: 'user' as const,
+        content: JSON.stringify({
+          relato: data.story,
+          tipoDeEntidad: data.entityKind,
+          nombreDeEntidad: data.entityName,
+          respuestasAnteriores: answers,
         }),
-        signal: AbortSignal.timeout(30000),
       },
-    )
+    ]
+
+    let response = await requestOpenRouter(apiKey, model, messages)
+    let usedModel = model
+
+    // Si el modelo principal está temporalmente saturado, se puede usar un
+    // modelo alternativo configurado en Vercel sin cambiar el código.
+    const fallbackModel = process.env.OPENROUTER_FALLBACK_MODEL?.trim()
+    if (!response.ok && fallbackModel && fallbackModel !== model &&
+        [429, 500, 502, 503, 504].includes(response.status)) {
+      console.warn('DiloBien: modelo principal no disponible; intentando modelo alternativo.', {
+        primaryModel: model,
+        status: response.status,
+      })
+      response = await requestOpenRouter(apiKey, fallbackModel, messages)
+      usedModel = fallbackModel
+    }
 
     const rawResponse = await response.text()
 
@@ -218,7 +255,7 @@ export async function POST(request: Request) {
     } catch {
       console.error('DiloBien: respuesta no JSON de OpenRouter.', {
         status: response.status,
-        model,
+        model: usedModel,
         responseLength: rawResponse.length,
       })
 
@@ -234,7 +271,7 @@ export async function POST(request: Request) {
     if (!response.ok) {
       console.error('DiloBien: error de OpenRouter.', {
         status: response.status,
-        model,
+        model: usedModel,
         errorCode: result?.error?.code ?? null,
         errorMessage:
           typeof result?.error?.message === 'string'
@@ -258,7 +295,7 @@ export async function POST(request: Request) {
     // No se debe aceptar una respuesta cortada como si fuera un análisis válido.
     if (choice?.finish_reason === 'length') {
       console.error('DiloBien: el modelo agotó el límite de generación.', {
-        model,
+        model: usedModel,
         finishReason: choice.finish_reason,
         completionTokens: result?.usage?.completion_tokens ?? null,
         reasoningTokens:
@@ -278,7 +315,7 @@ export async function POST(request: Request) {
 
     if (!content) {
       console.error('DiloBien: respuesta sin contenido interpretable.', {
-        model,
+        model: usedModel,
         finishReason: choice?.finish_reason ?? null,
         contentType: typeof choice?.message?.content,
         refusal: choice?.message?.refusal ?? null,
