@@ -18,12 +18,14 @@ export default async function AliDiagnosticPage() {
       error instanceof Error ? error.message : "Error desconocido",
     );
 
-    errorMessage =
+    const missingCredential =
       error instanceof Error &&
-      error.message === "Falta configurar la variable ALI_MCP_API_KEY_PREVIEW." ||
-      error.message === "Falta configurar la variable ALI_MCP_API_KEY."
-        ? "Falta configurar ALI_MCP_API_KEY_PREVIEW en las variables de entorno de Vercel para Preview."
-        : "No fue posible establecer comunicación con ALI. Revisa la credencial y la configuración del servicio.";
+      (error.message === "Falta configurar la variable ALI_MCP_API_KEY_PREVIEW." ||
+        error.message === "Falta configurar la variable ALI_MCP_API_KEY.");
+
+    errorMessage = missingCredential
+      ? "Falta configurar ALI_MCP_API_KEY_PREVIEW en las variables de entorno de Vercel para Preview."
+      : "No fue posible establecer comunicación con ALI. Revisa la credencial y la configuración del servicio.";
   }
 
   return (
