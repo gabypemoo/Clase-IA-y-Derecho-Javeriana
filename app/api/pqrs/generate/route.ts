@@ -71,37 +71,36 @@ DATOS DEL CASO:
 - Teléfono: ${data.phone || 'No especificado'}
 
 INSTRUCCIONES:
-1. Redacta el documento en primera persona, como si el ciudadano lo presentara directamente.
-2. Organiza los hechos cronológicamente y conserva fielmente la información proporcionada.
-3. No inventes hechos, fechas, respuestas, documentos, pruebas ni circunstancias.
-4. Formula solicitudes concretas, claras y relacionadas directamente con el problema descrito.
-5. Utiliza un lenguaje formal, respetuoso, sencillo y comprensible.
-6. No incluyas etiquetas técnicas, códigos internos, nombres de variables ni valores del sistema.
-7. Incluye únicamente los anexos que el usuario haya indicado. Si no proporcionó ninguno, escribe: "No se aportan anexos".
-8. No inventes leyes, artículos, sentencias ni fundamentos jurídicos.
-9. Incluye fundamentos jurídicos solamente cuando puedas identificar normas reales, vigentes y pertinentes. Si no tienes certeza, omite esta sección.
-10. Diferencia los hechos relatados por el ciudadano de aquellos que estén documentalmente acreditados.
-11. No agregues solicitudes que no tengan relación con el caso.
-12. Si falta información indispensable, utiliza indicaciones entre corchetes, sin completar los datos por tu cuenta.
-13. No prometas resultados ni afirmes que la entidad está obligada a conceder una solución específica sin fundamento.
-14. No presentes referencias de prueba como si fueran radicados oficiales.
-15. Incluye los datos de identificación y contacto únicamente cuando hayan sido proporcionados.
-16. Utiliza esta estructura, adaptándola a la información disponible:
+1. Redacta el documento en primera persona.
+2. Organiza los hechos cronológicamente.
+3. Conserva fielmente la información proporcionada.
+4. No inventes hechos, fechas, respuestas, documentos, pruebas ni circunstancias.
+5. Formula solicitudes concretas y relacionadas con el problema.
+6. Utiliza lenguaje formal, respetuoso y comprensible.
+7. No incluyas códigos internos ni nombres de variables.
+8. Incluye únicamente los anexos indicados por el ciudadano.
+9. No inventes leyes, artículos, sentencias ni fundamentos jurídicos.
+10. Incluye fundamentos jurídicos solamente cuando sean reales, vigentes y pertinentes.
+11. Diferencia los hechos relatados de aquellos acreditados documentalmente.
+12. Si falta información indispensable, utiliza indicaciones entre corchetes.
+13. No prometas resultados ni afirmes que la entidad debe conceder una solución sin fundamento.
+14. No inventes números de radicado ni referencias oficiales.
+15. Incluye datos personales únicamente cuando hayan sido proporcionados.
 
-- Asunto
-- Destinatario
-- Identificación del solicitante, si está disponible
-- Hechos
-- Solicitudes
-- Fundamentos jurídicos, únicamente si están verificados y son pertinentes
-- Anexos
-- Datos de contacto
+ESTRUCTURA:
+- Asunto.
+- Destinatario.
+- Identificación del solicitante, si está disponible.
+- Hechos.
+- Solicitudes.
+- Fundamentos jurídicos, si están verificados y son pertinentes.
+- Anexos.
+- Datos de contacto.
 
-17. Devuelve únicamente el texto completo de la PQRS, sin explicaciones adicionales.
+Devuelve únicamente el texto completo de la PQRS, sin explicaciones adicionales.
 
-IMPORTANTE:
-La información proporcionada por el ciudadano es la fuente de los hechos del documento.
-No debes agregar información para hacer que la solicitud parezca más completa.
+La información del ciudadano es la única fuente de los hechos.
+No agregues información para hacer que el documento parezca más completo.
 `
 
     const response = await fetch(
@@ -127,8 +126,8 @@ No debes agregar información para hacer que la solicitud parezca más completa.
               content: prompt,
             },
           ],
-          temperature: 0.3,
-          max_tokens: 1800,
+          temperature: 0.2,
+          max_tokens: 6000,
         }),
       },
     )
@@ -136,29 +135,65 @@ No debes agregar información para hacer que la solicitud parezca más completa.
     const result = await response.json()
 
     console.log('OpenRouter status:', response.status)
+    console.log('OpenRouter model:', result?.model)
     console.log(
-      'OpenRouter response:',
-      JSON.stringify(result).slice(0, 3000),
+      'OpenRouter finish reason:',
+      result?.choices?.[0]?.finish_reason,
     )
+    console.log('OpenRouter usage:', result?.usage)
 
     if (!response.ok) {
+      console.error('OpenRouter error:', result?.error)
+
       return NextResponse.json(
         {
           error:
             result?.error?.message ||
             'No fue posible generar la PQRS con inteligencia artificial.',
         },
-        { status: response.status },
+        { status: 502 },
       )
     }
 
-    const generatedText = result?.choices?.[0]?.message?.content
+    const content = result?.choices?.[0]?.message?.content
 
-    if (typeof generatedText !== 'string' || !generatedText.trim()) {
+    // Algunos modelos devuelven el contenido como texto
+    // y otros pueden devolver bloques de texto.
+    const generatedText =
+      typeof content === 'string'
+        ? content
+        : Array.isArray(content)
+          ? content
+              .filter(
+                (item: { type?: string; text?: string }) =>
+                  typeof item?.text === 'string',
+              )
+              .map((item: { text: string }) => item.text)
+              .join('\n')
+          : ''
+
+    if (!generatedText.trim()) {
+      const finishReason = result?.choices?.[0]?.finish_reason
+
+      console.error('La IA no devolvió texto:', {
+        finishReason,
+        model: result?.model,
+        usage: result?.usage,
+      })
+
       return NextResponse.json(
-        { error: 'La inteligencia artificial no devolvió un texto válido.' },
+        {
+          error:
+            finishReason === 'length'
+              ? 'La IA agotó el límite de generación antes de terminar la PQRS. Intenta nuevamente.'
+              : 'La IA no generó un documento válido. Intenta nuevamente.',
+        },
         { status: 502 },
       )
+    }
+
+    if (result?.choices?.[0]?.finish_reason === 'length') {
+      console.warn('La PQRS podría estar incompleta por límite de tokens.')
     }
 
     return NextResponse.json({ body: generatedText.trim() })
@@ -171,3 +206,4 @@ No debes agregar información para hacer que la solicitud parezca más completa.
     )
   }
 }
+
