@@ -4,6 +4,18 @@ import type { PqrsDraftData } from '@/lib/pqrs/types'
 
 export const runtime = 'nodejs'
 
+// Convierte las opciones internas del formulario en lenguaje natural.
+function formatContacted(value?: string) {
+  switch (value) {
+    case 'si-sin-respuesta':
+      return 'Sí, contacté a la entidad, pero no recibí respuesta.'
+    case 'no':
+      return 'No he contactado previamente a la entidad.'
+    default:
+      return value || 'No especificado'
+  }
+}
+
 export async function POST(request: Request) {
   try {
     const apiKey = process.env.OPENROUTER_API_KEY
@@ -32,6 +44,11 @@ export async function POST(request: Request) {
       )
     }
 
+    const attachments =
+      data.attachments && data.attachments.length > 0
+        ? data.attachments.join(', ')
+        : 'No se aportan anexos'
+
     const prompt = `
 Redacta una PQRS en español, en primera persona, usando lenguaje
 claro, respetuoso, formal y comprensible para cualquier ciudadano.
@@ -43,25 +60,48 @@ DATOS DEL CASO:
 - Tipo de PQRS: ${data.pqrsKind || 'Por identificar'}
 - Fecha del problema: ${data.occurredOn || 'No especificada'}
 - Descripción: ${data.story}
-- Contacto previo: ${data.contacted || 'No especificado'}
+- Contacto previo: ${formatContacted(data.contacted)}
 - Respuesta recibida: ${data.previousAnswer || 'No especificada'}
 - Referencia: ${data.reference || 'No especificada'}
 - Solución esperada: ${data.expectedOutcome || 'No especificada'}
-- Anexos: ${data.attachments?.join(', ') || 'Ninguno'}
+- Anexos: ${attachments}
 - Nombre: ${data.fullName || 'No especificado'}
 - Documento: ${data.idNumber || 'No especificado'}
 - Correo: ${data.email || 'No especificado'}
 - Teléfono: ${data.phone || 'No especificado'}
 
 INSTRUCCIONES:
-1. Organiza los hechos cronológicamente y no inventes información.
-2. Formula solicitudes concretas relacionadas con los hechos.
-3. Incluye asunto, destinatario, hechos, solicitudes, anexos y contacto cuando estén disponibles.
-4. Si falta información, utiliza indicaciones entre corchetes.
-5. No inventes leyes, artículos, sentencias ni citas jurídicas.
-6. No inventes fechas, radicados ni pruebas.
-7. No prometas resultados.
-8. Devuelve únicamente el texto completo de la PQRS.
+1. Redacta el documento en primera persona, como si el ciudadano lo presentara directamente.
+2. Organiza los hechos cronológicamente y conserva fielmente la información proporcionada.
+3. No inventes hechos, fechas, respuestas, documentos, pruebas ni circunstancias.
+4. Formula solicitudes concretas, claras y relacionadas directamente con el problema descrito.
+5. Utiliza un lenguaje formal, respetuoso, sencillo y comprensible.
+6. No incluyas etiquetas técnicas, códigos internos, nombres de variables ni valores del sistema.
+7. Incluye únicamente los anexos que el usuario haya indicado. Si no proporcionó ninguno, escribe: "No se aportan anexos".
+8. No inventes leyes, artículos, sentencias ni fundamentos jurídicos.
+9. Incluye fundamentos jurídicos solamente cuando puedas identificar normas reales, vigentes y pertinentes. Si no tienes certeza, omite esta sección.
+10. Diferencia los hechos relatados por el ciudadano de aquellos que estén documentalmente acreditados.
+11. No agregues solicitudes que no tengan relación con el caso.
+12. Si falta información indispensable, utiliza indicaciones entre corchetes, sin completar los datos por tu cuenta.
+13. No prometas resultados ni afirmes que la entidad está obligada a conceder una solución específica sin fundamento.
+14. No presentes referencias de prueba como si fueran radicados oficiales.
+15. Incluye los datos de identificación y contacto únicamente cuando hayan sido proporcionados.
+16. Utiliza esta estructura, adaptándola a la información disponible:
+
+- Asunto
+- Destinatario
+- Identificación del solicitante, si está disponible
+- Hechos
+- Solicitudes
+- Fundamentos jurídicos, únicamente si están verificados y son pertinentes
+- Anexos
+- Datos de contacto
+
+17. Devuelve únicamente el texto completo de la PQRS, sin explicaciones adicionales.
+
+IMPORTANTE:
+La información proporcionada por el ciudadano es la fuente de los hechos del documento.
+No debes agregar información para hacer que la solicitud parezca más completa.
 `
 
     const response = await fetch(
@@ -80,7 +120,7 @@ INSTRUCCIONES:
             {
               role: 'system',
               content:
-                'Eres un asistente especializado en ayudar a ciudadanos colombianos a redactar PQRS. Eres cuidadoso con los hechos y las normas jurídicas.',
+                'Eres un asistente especializado en ayudar a ciudadanos colombianos a redactar PQRS. Tu prioridad es la fidelidad a los hechos, la claridad, el respeto por el ciudadano y la precisión jurídica. Nunca inventes información ni normas.',
             },
             {
               role: 'user',
@@ -96,7 +136,10 @@ INSTRUCCIONES:
     const result = await response.json()
 
     console.log('OpenRouter status:', response.status)
-    console.log('OpenRouter response:', JSON.stringify(result).slice(0, 3000))
+    console.log(
+      'OpenRouter response:',
+      JSON.stringify(result).slice(0, 3000),
+    )
 
     if (!response.ok) {
       return NextResponse.json(
