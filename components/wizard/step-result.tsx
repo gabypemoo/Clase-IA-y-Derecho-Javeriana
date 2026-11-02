@@ -365,12 +365,51 @@ export function StepResult() {
             ) : null}
           </div>
 
+          <div className="flex flex-col gap-4 rounded-2xl border border-border bg-card p-6">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h2 className="font-display text-lg font-bold">Consulta jurídica de ALIado</h2>
+              <Badge variant={generated.aliResearch.status === 'available' ? 'secondary' : 'destructive'}>
+                {generated.aliResearch.status === 'available' ? 'Consulta recibida' : 'Sin resultados de ALI'}
+              </Badge>
+            </div>
+            <p className="text-sm leading-relaxed text-muted-foreground">
+              {generated.aliResearch.note}
+            </p>
+            <div className="flex flex-col gap-2">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Herramienta utilizada</p>
+              <p className="text-sm">buscar_normas</p>
+            </div>
+            {generated.aliResearch.query ? (
+              <details className="rounded-lg border border-border p-3">
+                <summary className="cursor-pointer text-sm font-medium">Ver consulta enviada a ALIado</summary>
+                <pre className="mt-3 whitespace-pre-wrap break-words text-xs leading-relaxed text-muted-foreground">{generated.aliResearch.query}</pre>
+              </details>
+            ) : null}
+            <div className="flex flex-col gap-2">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Resultados originales devueltos por ALIado</p>
+              {generated.aliResearch.rawResults ? (
+                <details className="rounded-lg border border-border p-3">
+                  <summary className="cursor-pointer text-sm font-medium">Consultar evidencia recuperada</summary>
+                  <pre className="mt-3 max-h-96 overflow-auto whitespace-pre-wrap break-words text-xs leading-relaxed text-muted-foreground">{generated.aliResearch.rawResults}</pre>
+                </details>
+              ) : (
+                <p className="text-sm text-muted-foreground">No hay resultados originales para mostrar.</p>
+              )}
+            </div>
+            <p className="text-xs leading-relaxed text-muted-foreground">
+              Esta sección demuestra qué respuesta devolvió la herramienta. No certifica por sí sola que cada norma sea aplicable, esté vigente o haya sido citada correctamente en el documento. Verifica las referencias antes de presentar la PQRS.
+            </p>
+          </div>
+
           <div className="rounded-2xl border border-border bg-card p-6">
             <LegalSources
               sources={generated.sources}
-              heading="Normas de apoyo"
+              heading="Referencias generales del proyecto"
               compact
             />
+            <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
+              Estas referencias son orientativas y no equivalen a resultados recuperados de ALIado para esta consulta.
+            </p>
           </div>
         </aside>
       ) : null}
