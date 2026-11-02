@@ -52,12 +52,21 @@ export interface LegalSource {
   summary: string
 }
 
+export interface AliResearchInfo {
+  status: 'available' | 'unavailable'
+  tool: 'buscar_normas'
+  query: string
+  rawResults: string
+  note: string
+}
+
 export interface GeneratedPqrs {
   resolvedKind: Exclude<PqrsKind, 'no-seguro'>
   subject: string
   body: string
   sources: LegalSource[]
   filingChannels: string[]
+  aliResearch: AliResearchInfo
 }
 
 export const EMPTY_DRAFT: PqrsDraftData = {
