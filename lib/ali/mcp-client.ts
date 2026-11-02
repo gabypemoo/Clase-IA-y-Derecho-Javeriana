@@ -5,10 +5,19 @@ const ALI_MCP_URL = "https://mcp.aliado.pro/mcp";
 const CONNECTION_TIMEOUT_MS = 12_000;
 
 function getAliApiKey(): string {
-  const apiKey = process.env.ALI_MCP_API_KEY;
+  // Vercel usa una credencial separada para Preview y conserva la de Production.
+  // En desarrollo local se admite ALI_MCP_API_KEY.
+  const isPreview = process.env.VERCEL_ENV === "preview";
+  const apiKey = isPreview
+    ? process.env.ALI_MCP_API_KEY_PREVIEW
+    : process.env.ALI_MCP_API_KEY;
 
   if (!apiKey) {
-    throw new Error("Falta configurar la variable ALI_MCP_API_KEY.");
+    throw new Error(
+      isPreview
+        ? "Falta configurar la variable ALI_MCP_API_KEY_PREVIEW."
+        : "Falta configurar la variable ALI_MCP_API_KEY.",
+    );
   }
 
   return apiKey;
