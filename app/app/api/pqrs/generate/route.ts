@@ -1,138 +1,100 @@
 
-import { NextResponse } from 'next/server'
-import type { PqrsDraftData } from '@/lib/pqrs/types'
+import { ENTITY_KINDS, LEGAL_SOURCES, PQRS_KINDS } from './content'
+import type { GeneratedPqrs, PqrsDraftData, PqrsKind } from './types'
 
-export const runtime = 'nodejs'
+function resolveKind(data: PqrsDraftData): Exclude<PqrsKind, 'no-seguro'> {
+  if (data.pqrsKind && data.pqrsKind !== 'no-seguro') {
+    return data.pqrsKind
+  }
 
-export async function POST(request: Request) {
+  const text = `${data.story} ${data.expectedOutcome}`.toLowerCase()
+
+  if (/(copia|certificad|document|informaci[oó]n|hist[oó]rico|extracto)/.test(text)) {
+    return 'solicitud-informacion'
+  }
+
+  if (/(cobr|factur|cargo|servicio no|no funcion|da[ñn]|garant[ií]a|devoluci[oó]n|producto)/.test(text)) {
+    return 'reclamo'
+  }
+
+  if (/(grosero|mal atendid|maltrat|funcionario|atenci[oó]n|demora|fila)/.test(text)) {
+    return 'queja'
+  }
+
+  return 'peticion'
+}
+
+function kindLabel(kind: PqrsKind) {
+  return PQRS_KINDS.find((k) => k.value === kind)?.label ?? 'Petición'
+}
+
+function sourcesFor(
+  kind: Exclude<PqrsKind, 'no-seguro'>,
+  data: PqrsDraftData,
+) {
+  const ids = new Set<string>(['cp-23', 'ley-1755-2015'])
+
+  const consumerContext =
+    kind === 'reclamo' ||
+    ['banco', 'servicios-publicos', 'telecomunicaciones', 'empresa-privada'].includes(
+      data.entityKind,
+    )
+
+  if (consumerContext) ids.add('ley-1480-2011')
+
+  return LEGAL_SOURCES.filter((source) => ids.has(source.id))
+}
+
+export async function generatePqrs(
+  data: PqrsDraftData,
+): Promise<GeneratedPqrs> {
+  const kind = resolveKind(data)
+  const subject = `${kindLabel(kind)}${
+    data.reference ? ` — Referencia ${data.reference}` : ''
+  }`
+
+  const response = await fetch('/api/pqrs/generate', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(data),
+  })
+
+  const responseText = await response.text()
+
+  let result: any
+
   try {
-    const apiKey = process.env.OPENROUTER_API_KEY
-    const model = process.env.OPENROUTER_MODEL
-
-    if (!apiKey) {
-      return NextResponse.json(
-        { error: 'Falta configurar OPENROUTER_API_KEY en el servidor.' },
-        { status: 500 },
-      )
-    }
-
-    if (!model) {
-      return NextResponse.json(
-        { error: 'Falta configurar OPENROUTER_MODEL en el servidor.' },
-        { status: 500 },
-      )
-    }
-
-    const data = (await request.json()) as PqrsDraftData
-
-    if (!data.story?.trim()) {
-      return NextResponse.json(
-        { error: 'Debes describir el problema.' },
-        { status: 400 },
-      )
-    }
-
-    const prompt = `
-Redacta una PQRS en español, en primera persona, usando lenguaje
-claro, respetuoso, formal y comprensible para cualquier ciudadano.
-
-DATOS DEL CASO:
-- Entidad: ${data.entityName || 'No especificada'}
-- Tipo de entidad: ${data.entityKind || 'No especificado'}
-- Ciudad: ${data.city || 'No especificada'}
-- Tipo de PQRS seleccionado: ${data.pqrsKind || 'Por identificar'}
-- Fecha del problema: ${data.occurredOn || 'No especificada'}
-- Descripción: ${data.story}
-- ¿Se contactó a la entidad?: ${data.contacted || 'No especificado'}
-- Respuesta recibida: ${data.previousAnswer || 'No especificada'}
-- Referencia o radicado: ${data.reference || 'No especificado'}
-- Solución esperada: ${data.expectedOutcome || 'No especificada'}
-- Documentos adjuntos: ${data.attachments.join(', ') || 'Ninguno'}
-- Nombre: ${data.fullName || 'No especificado'}
-- Documento: ${data.idNumber || 'No especificado'}
-- Correo: ${data.email || 'No especificado'}
-- Teléfono: ${data.phone || 'No especificado'}
-
-INSTRUCCIONES:
-1. Organiza los hechos cronológicamente y no inventes información.
-2. Formula solicitudes concretas que correspondan a los hechos.
-3. Incluye asunto, destinatario, hechos, solicitudes, anexos y datos de contacto cuando estén disponibles.
-4. Si falta información, utiliza una indicación entre corchetes.
-5. No inventes leyes, artículos, sentencias ni citas jurídicas.
-6. No afirmes que una norma aplica si no puedes verificarlo.
-7. No inventes números de radicado, fechas ni pruebas.
-8. No prometas resultados ni garantices que la entidad concederá lo solicitado.
-9. Devuelve únicamente el texto completo de la PQRS.
-`
-
-    console.log('Modelo enviado a OpenRouter:', model)
-
-    const response = await fetch(
-      'https://openrouter.ai/api/v1/chat/completions',
-      {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          'Content-Type': 'application/json',
-          'HTTP-Referer': 'https://dilobien.vercel.app',
-          'X-OpenRouter-Title': 'DiloBien',
-        },
-        body: JSON.stringify({
-          model,
-          messages: [
-            {
-              role: 'system',
-              content:
-                'Eres un asistente especializado en ayudar a ciudadanos colombianos a redactar PQRS. Eres cuidadoso con los hechos y las normas jurídicas.',
-            },
-            {
-              role: 'user',
-              content: prompt,
-            },
-          ],
-          temperature: 0.3,
-          max_tokens: 1800,
-        }),
-      },
+    result = JSON.parse(responseText)
+  } catch {
+    console.error(
+      'Respuesta no válida de la API:',
+      responseText.slice(0, 500),
     )
 
-    const result = await response.json()
-
-    console.log(
-      'OpenRouter response:',
-      JSON.stringify(result).slice(0, 3000),
+    throw new Error(
+      'El servidor devolvió una respuesta inesperada. Revisa el despliegue de la API.',
     )
+  }
 
-    if (!response.ok) {
-      console.error('Error de OpenRouter:', result)
-      return NextResponse.json(
-        {
-          error:
-            result?.error?.message ||
-            'No fue posible generar la PQRS con inteligencia artificial.',
-        },
-        { status: response.status },
-      )
-    }
-
-    const generatedText = result?.choices?.[0]?.message?.content
-
-    console.log('Generated text:', generatedText)
-
-    if (typeof generatedText !== 'string' || !generatedText.trim()) {
-      return NextResponse.json(
-        { error: 'La inteligencia artificial no devolvió un texto válido.' },
-        { status: 502 },
-      )
-    }
-
-    return NextResponse.json({ body: generatedText.trim() })
-  } catch (error) {
-    console.error('Error al generar PQRS:', error)
-
-    return NextResponse.json(
-      { error: 'Ocurrió un error al procesar tu solicitud.' },
-      { status: 500 },
+  if (!response.ok) {
+    throw new Error(
+      result?.error || 'No fue posible generar la PQRS.',
     )
+  }
+
+  if (typeof result.body !== 'string' || !result.body.trim()) {
+    throw new Error(
+      'La respuesta de la inteligencia artificial está vacía.',
+    )
+  }
+
+  return {
+    resolvedKind: kind,
+    subject,
+    body: result.body,
+    sources: sourcesFor(kind, data),
+    filingChannels: [],
   }
 }
