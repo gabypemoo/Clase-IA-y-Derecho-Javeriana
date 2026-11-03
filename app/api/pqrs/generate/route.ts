@@ -6,6 +6,15 @@ import { callAliTool } from '@/lib/ali/mcp-client'
 export const runtime = 'nodejs'
 export const maxDuration = 120
 
+// Reservamos margen frente al límite de ejecución de Vercel.
+const ALI_TIMEOUT_MS = 8_000
+const OPENROUTER_TIMEOUT_MS = 45_000
+
+function isTimeoutError(error: unknown) {
+  return error instanceof Error &&
+    (error.name === 'TimeoutError' || error.name === 'AbortError')
+}
+
 async function requestOpenRouter(
   apiKey: string,
   model: string,
@@ -86,12 +95,19 @@ export async function POST(request: Request) {
         data.expectedOutcome ? `Resultado solicitado: ${data.expectedOutcome}` : '',
       ].filter(Boolean).join('\n').slice(0, 5000)
 
-      const research = await callAliTool('buscar_normas', {
+      const aliStartedAt = Date.now()
+      const research = await Promise.race([
+        callAliTool('buscar_normas', {
         query: legalQuery,
         limit: 5,
         excluir_derogadas: true,
         source: 'suin',
-      })
+        }),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new DOMException('ALI research timed out', 'TimeoutError')), ALI_TIMEOUT_MS),
+        ),
+      ])
+      console.info('DiloBien: duración de consulta ALI.', { durationMs: Date.now() - aliStartedAt })
 
       if (!research.isError && research.text.trim()) {
         aliEvidence = research.text
@@ -102,6 +118,7 @@ export async function POST(request: Request) {
     } catch (error) {
       console.error('DiloBien: consulta ALI no disponible para esta generación.', {
         errorName: error instanceof Error ? error.name : 'UnknownError',
+        timedOut: isTimeoutError(error),
       })
     }
 
@@ -202,22 +219,68 @@ Devuelve únicamente el documento completo de la PQRS.
       { role: 'user' as const, content: JSON.stringify(userData) },
     ]
 
-    let response = await requestOpenRouter(apiKey, model, messages, 45000)
+    let response: Response | null = null
     let usedModel = model
+    let primaryFailure: string | number = 'unknown'
     const fallbackModel =
       process.env.OPENROUTER_FALLBACK_MODEL?.trim() || 'openrouter/free'
 
-    if (
-      !response.ok &&
-      fallbackModel !== model &&
-      [429, 500, 502, 503, 504].includes(response.status)
-    ) {
-      console.warn('DiloBien: modelo principal no disponible en generación; intentando alternativa.', {
-        primaryModel: model,
+    const primaryStartedAt = Date.now()
+    try {
+      response = await requestOpenRouter(apiKey, model, messages, OPENROUTER_TIMEOUT_MS)
+      console.info('DiloBien: duración de generación OpenRouter.', {
+        model,
+        durationMs: Date.now() - primaryStartedAt,
         status: response.status,
       })
-      response = await requestOpenRouter(apiKey, fallbackModel, messages, 65000)
-      usedModel = fallbackModel
+      if (!response.ok) primaryFailure = response.status
+    } catch (error) {
+      primaryFailure = isTimeoutError(error) ? 'timeout' : 'network_error'
+      console.warn('DiloBien: fallo en modelo principal; se evaluará alternativa.', {
+        model,
+        failure: primaryFailure,
+        durationMs: Date.now() - primaryStartedAt,
+      })
+    }
+
+    const shouldFallback =
+      fallbackModel !== model &&
+      (response === null ||
+        [429, 500, 502, 503, 504].includes(response.status))
+
+    if (shouldFallback) {
+      if (response) await response.body?.cancel().catch(() => undefined)
+      console.warn('DiloBien: intentando modelo alternativo en generación.', {
+        primaryModel: model,
+        failure: primaryFailure,
+        fallbackModel,
+      })
+      const fallbackStartedAt = Date.now()
+      try {
+        response = await requestOpenRouter(
+          apiKey,
+          fallbackModel,
+          messages,
+          OPENROUTER_TIMEOUT_MS,
+        )
+        usedModel = fallbackModel
+        console.info('DiloBien: duración de generación alternativa.', {
+          model: fallbackModel,
+          durationMs: Date.now() - fallbackStartedAt,
+          status: response.status,
+        })
+      } catch (error) {
+        console.error('DiloBien: también falló el modelo alternativo.', {
+          model: fallbackModel,
+          failure: isTimeoutError(error) ? 'timeout' : 'network_error',
+          durationMs: Date.now() - fallbackStartedAt,
+        })
+        throw error
+      }
+    }
+
+    if (!response) {
+      throw new Error('OpenRouter did not return a response')
     }
 
     const rawResponse = await response.text()
@@ -309,9 +372,7 @@ Devuelve únicamente el documento completo de la PQRS.
       },
     })
   } catch (error) {
-    const isTimeout =
-      error instanceof Error &&
-      (error.name === 'TimeoutError' || error.name === 'AbortError')
+    const isTimeout = isTimeoutError(error)
 
     console.error('DiloBien: error al generar PQRS.', {
       errorName: error instanceof Error ? error.name : 'UnknownError',
