@@ -16,7 +16,7 @@ REGLAS:
 - No inventes hechos, fechas, pruebas, nombres, radicados ni normas.
 - Ten en cuenta las respuestas anteriores.
 - No repitas preguntas respondidas ni preguntes de nuevo por datos que el ciudadano dijo desconocer.
-- Formula como máximo 3 preguntas sencillas y necesarias.
+- Formula como máximo 2 preguntas sencillas y necesarias.
 - Pregunta únicamente por información esencial para entender el caso o redactar solicitudes concretas.
 - Si la información es suficiente, sufficient debe ser true y questions debe ser [].
 - Si falta información esencial, sufficient debe ser false y debes formular al menos una pregunta.
@@ -179,7 +179,7 @@ export async function POST(request: Request) {
               },
             ],
             temperature: 0.1,
-            max_tokens: 1000,
+            max_tokens: 2400,
           }),
           signal: AbortSignal.timeout(25_000),
         })
