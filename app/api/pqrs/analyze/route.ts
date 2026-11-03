@@ -156,7 +156,9 @@ async function requestOpenRouter(
   model: string,
   messages: Array<{ role: 'system' | 'user'; content: string }>,
 ) {
-  const maxAttempts = 2
+  // Evita reintentos largos: una llamada puede tardar hasta 25 s y
+  // el fallback se intenta aparte si OpenRouter responde con saturación.
+  const maxAttempts = 1
   let lastResponse: Response | null = null
 
   for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
@@ -174,7 +176,7 @@ async function requestOpenRouter(
         temperature: 0.1,
         max_tokens: 1200,
       }),
-      signal: AbortSignal.timeout(12000),
+      signal: AbortSignal.timeout(25000),
     })
 
     if (
