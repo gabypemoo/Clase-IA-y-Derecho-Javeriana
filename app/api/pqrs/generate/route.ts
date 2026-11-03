@@ -15,6 +15,25 @@ function isTimeoutError(error: unknown) {
     (error.name === 'TimeoutError' || error.name === 'AbortError')
 }
 
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(
+      () => reject(new DOMException('Operation timed out', 'TimeoutError')),
+      timeoutMs,
+    )
+    promise.then(
+      (value) => {
+        clearTimeout(timer)
+        resolve(value)
+      },
+      (error) => {
+        clearTimeout(timer)
+        reject(error)
+      },
+    )
+  })
+}
+
 async function requestOpenRouter(
   apiKey: string,
   model: string,
@@ -96,17 +115,15 @@ export async function POST(request: Request) {
       ].filter(Boolean).join('\n').slice(0, 5000)
 
       const aliStartedAt = Date.now()
-      const research = await Promise.race([
+      const research = await withTimeout(
         callAliTool('buscar_normas', {
-        query: legalQuery,
-        limit: 5,
-        excluir_derogadas: true,
-        source: 'suin',
+          query: legalQuery,
+          limit: 5,
+          excluir_derogadas: true,
+          source: 'suin',
         }),
-        new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new DOMException('ALI research timed out', 'TimeoutError')), ALI_TIMEOUT_MS),
-        ),
-      ])
+        ALI_TIMEOUT_MS,
+      )
       console.info('DiloBien: duración de consulta ALI.', { durationMs: Date.now() - aliStartedAt })
 
       if (!research.isError && research.text.trim()) {
