@@ -1,8 +1,10 @@
-
 import { NextResponse } from 'next/server'
 import type { PqrsDraftData } from '@/lib/pqrs/types'
 
 export const runtime = 'nodejs'
+// Esta ruta necesita más tiempo que el valor predeterminado de algunas funciones
+// serverless para esperar la respuesta del proveedor de IA.
+export const maxDuration = 60
 
 const SYSTEM_PROMPT = `
 Eres el asistente de análisis de DiloBien, una herramienta para ciudadanos colombianos que necesitan preparar sus propias PQRS.
@@ -21,27 +23,18 @@ REGLAS:
 - No redactes la PQRS todavía.
 - No hagas análisis jurídico ni cites normas en esta etapa.
 - El resumen debe tener máximo 50 palabras.
-- No agregues explicaciones fuera del JSON.
+- Devuelve exclusivamente un objeto JSON válido, sin Markdown ni texto adicional, con las propiedades summary (texto), questions (arreglo de objetos con id, question y reason) y sufficient (booleano).
 
-Devuelve únicamente este objeto JSON:
-
+Ejemplo de estructura:
 {
   "summary": "Resumen breve del problema",
-  "questions": [
-    {
-      "id": "q1",
-      "question": "Pregunta concreta",
-      "reason": "Por qué es importante"
-    }
-  ],
-  "sufficient": false
+  "questions": [],
+  "sufficient": true
 }
 `
 
 function normalizeContent(content: unknown): string | null {
-  if (typeof content === 'string' && content.trim()) {
-    return content.trim()
-  }
+  if (typeof content === 'string' && content.trim()) return content.trim()
 
   if (Array.isArray(content)) {
     const text = content
@@ -53,24 +46,18 @@ function normalizeContent(content: unknown): string | null {
       .filter(Boolean)
       .join('\n')
       .trim()
-
     return text || null
   }
 
   if (content && typeof content === 'object') {
     const value = content as Record<string, unknown>
-
     if (typeof value.text === 'string') return value.text
     if (typeof value.output_text === 'string') return value.output_text
-
-    // Algunos proveedores pueden devolver directamente el objeto JSON.
     if (
       typeof value.summary === 'string' &&
       typeof value.sufficient === 'boolean' &&
       Array.isArray(value.questions)
-    ) {
-      return JSON.stringify(value)
-    }
+    ) return JSON.stringify(value)
   }
 
   return null
@@ -79,10 +66,17 @@ function normalizeContent(content: unknown): string | null {
 function parseAnalysis(content: string) {
   const cleaned = content
     .trim()
-    .replace(/^```(?:json)?\s*/i, '')
-    .replace(/\s*```$/, '')
-
-  return JSON.parse(cleaned)
+    .replace(/^\`\`\`(?:json)?\s*/i, '')
+    .replace(/\s*\`\`\`$/, '')
+  try {
+    return JSON.parse(cleaned)
+  } catch {
+    // Algunos modelos agregan una frase antes o después del objeto.
+    const start = cleaned.indexOf('{')
+    const end = cleaned.lastIndexOf('}')
+    if (start < 0 || end <= start) throw new Error('JSON inválido')
+    return JSON.parse(cleaned.slice(start, end + 1))
+  }
 }
 
 function validateAnalysis(analysis: any) {
@@ -91,31 +85,25 @@ function validateAnalysis(analysis: any) {
     typeof analysis.summary !== 'string' ||
     typeof analysis.sufficient !== 'boolean' ||
     !Array.isArray(analysis.questions)
-  ) {
-    return null
-  }
+  ) return null
 
   const questions = analysis.questions
-    .filter(
-      (question: any) =>
-        question &&
-        typeof question.question === 'string' &&
-        question.question.trim() &&
-        typeof question.reason === 'string',
+    .filter((question: any) =>
+      question &&
+      typeof question.question === 'string' &&
+      question.question.trim() &&
+      typeof question.reason === 'string',
     )
     .slice(0, 3)
     .map((question: any, index: number) => ({
-      id:
-        typeof question.id === 'string' && question.id.trim()
-          ? question.id
-          : `q${index + 1}`,
+      id: typeof question.id === 'string' && question.id.trim()
+        ? question.id
+        : `q${index + 1}`,
       question: question.question.trim(),
       reason: question.reason.trim(),
     }))
 
-  if (!analysis.sufficient && questions.length === 0) {
-    return null
-  }
+  if (!analysis.sufficient && questions.length === 0) return null
 
   return {
     summary: analysis.summary.trim().slice(0, 500),
@@ -125,236 +113,178 @@ function validateAnalysis(analysis: any) {
 }
 
 export async function POST(request: Request) {
+  const startedAt = Date.now()
+
   try {
     const apiKey = process.env.OPENROUTER_API_KEY
     const model = process.env.OPENROUTER_MODEL
+    const fallbackModel = process.env.OPENROUTER_FALLBACK_MODEL
 
     if (!apiKey || !model) {
       console.error('DiloBien: faltan variables de entorno de OpenRouter.')
-
       return NextResponse.json(
-        {
-          error:
-            'La conexión con el servicio de inteligencia artificial no está configurada.',
-        },
+        { error: 'La conexión con el servicio de inteligencia artificial no está configurada.' },
         { status: 500 },
       )
     }
 
     let data: Partial<PqrsDraftData>
-
     try {
       data = (await request.json()) as Partial<PqrsDraftData>
     } catch {
-      return NextResponse.json(
-        { error: 'No fue posible leer la información enviada.' },
-        { status: 400 },
-      )
+      return NextResponse.json({ error: 'No fue posible leer la información enviada.' }, { status: 400 })
     }
 
     if (!data.story?.trim() || data.story.trim().length < 20) {
-      return NextResponse.json(
-        { error: 'Describe tu problema con al menos 20 caracteres.' },
-        { status: 400 },
-      )
+      return NextResponse.json({ error: 'Describe tu problema con al menos 20 caracteres.' }, { status: 400 })
     }
 
     const answers = Array.isArray(data.analysisAnswers)
       ? data.analysisAnswers
-          .filter(
-            (item) =>
-              item &&
-              typeof item.question === 'string' &&
-              typeof item.answer === 'string' &&
-              item.answer.trim(),
+          .filter(item =>
+            item &&
+            typeof item.question === 'string' &&
+            typeof item.answer === 'string' &&
+            item.answer.trim(),
           )
-          .map((item) => ({
-            question: item.question,
-            answer: item.answer.trim(),
-          }))
+          .map(item => ({ question: item.question, answer: item.answer.trim() }))
       : []
 
-    const response = await fetch(
-      'https://openrouter.ai/api/v1/chat/completions',
-      {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          'Content-Type': 'application/json',
-          'HTTP-Referer': 'https://dilobien.vercel.app',
-          'X-OpenRouter-Title': 'DiloBien',
-        },
-        body: JSON.stringify({
-          model,
-          messages: [
-            {
-              role: 'system',
-              content: SYSTEM_PROMPT,
-            },
-            {
-              role: 'user',
-              content: JSON.stringify({
-                relato: data.story,
-                tipoDeEntidad: data.entityKind,
-                nombreDeEntidad: data.entityName,
-                respuestasAnteriores: answers,
-              }),
-            },
-          ],
-          temperature: 0.1,
-          max_tokens: 1600,
-          response_format: { type: 'json_object' },
-        }),
-        signal: AbortSignal.timeout(30000),
-      },
-    )
+    const models = [...new Set([model, fallbackModel].filter((value): value is string => Boolean(value)))]
+    let lastError = 'No fue posible obtener una respuesta del modelo.'
 
-    const rawResponse = await response.text()
+    for (const currentModel of models) {
+      let response: Response
+      try {
+        response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${apiKey}`,
+            'Content-Type': 'application/json',
+            'HTTP-Referer': 'https://dilobien.vercel.app',
+            'X-OpenRouter-Title': 'DiloBien',
+          },
+          body: JSON.stringify({
+            model: currentModel,
+            messages: [
+              { role: 'system', content: SYSTEM_PROMPT },
+              {
+                role: 'user',
+                content: JSON.stringify({
+                  relato: data.story,
+                  tipoDeEntidad: data.entityKind,
+                  nombreDeEntidad: data.entityName,
+                  respuestasAnteriores: answers,
+                }),
+              },
+            ],
+            temperature: 0.1,
+            max_tokens: 1000,
+          }),
+          signal: AbortSignal.timeout(25_000),
+        })
+      } catch (error) {
+        lastError = error instanceof Error && error.name === 'TimeoutError'
+          ? 'El modelo agotó el tiempo de respuesta.'
+          : 'No fue posible establecer conexión con el modelo.'
+        console.error('DiloBien: fallo al consultar modelo de análisis.', {
+          model: currentModel,
+          errorName: error instanceof Error ? error.name : 'UnknownError',
+          elapsedMs: Date.now() - startedAt,
+        })
+        continue
+      }
 
-    let result: any
+      const rawResponse = await response.text()
+      let result: any
+      try {
+        result = JSON.parse(rawResponse)
+      } catch {
+        lastError = 'El proveedor devolvió una respuesta que no es JSON.'
+        console.error('DiloBien: respuesta no JSON de OpenRouter.', {
+          status: response.status,
+          model: currentModel,
+          responseLength: rawResponse.length,
+        })
+        continue
+      }
 
-    try {
-      result = JSON.parse(rawResponse)
-    } catch {
-      console.error('DiloBien: respuesta no JSON de OpenRouter.', {
-        status: response.status,
-        model,
-        responseLength: rawResponse.length,
-      })
-
-      return NextResponse.json(
-        {
-          error:
-            'El servicio de inteligencia artificial respondió de forma inesperada. Intenta nuevamente.',
-        },
-        { status: 502 },
-      )
-    }
-
-    if (!response.ok) {
-      console.error('DiloBien: error de OpenRouter.', {
-        status: response.status,
-        model,
-        errorCode: result?.error?.code ?? null,
-        errorMessage:
-          typeof result?.error?.message === 'string'
-            ? result.error.message.slice(0, 250)
+      if (!response.ok) {
+        lastError = response.status === 429
+          ? 'El modelo alcanzó un límite temporal.'
+          : `OpenRouter respondió con estado ${response.status}.`
+        console.error('DiloBien: error de OpenRouter.', {
+          status: response.status,
+          model: currentModel,
+          errorCode: result?.error?.code ?? null,
+          errorMessage: typeof result?.error?.message === 'string'
+            ? result.error.message.slice(0, 200)
             : 'Sin descripción',
-      })
+        })
+        continue
+      }
 
-      return NextResponse.json(
-        {
-          error:
-            response.status === 429
-              ? 'El modelo está ocupado o alcanzó su límite temporal. Espera un momento e inténtalo nuevamente.'
-              : 'No fue posible conectar con la inteligencia artificial. Intenta nuevamente.',
-        },
-        { status: 502 },
-      )
+      const choice = result?.choices?.[0]
+      if (choice?.finish_reason === 'length') {
+        lastError = 'La respuesta del modelo quedó incompleta.'
+        continue
+      }
+
+      const content = normalizeContent(choice?.message?.content)
+      if (!content) {
+        lastError = 'El modelo no devolvió contenido.'
+        continue
+      }
+
+      let analysis: any
+      try {
+        analysis = parseAnalysis(content)
+      } catch {
+        lastError = 'El modelo devolvió un análisis en formato inválido.'
+        console.error('DiloBien: JSON de análisis inválido.', {
+          model: currentModel,
+          contentLength: content.length,
+        })
+        continue
+      }
+
+      const validated = validateAnalysis(analysis)
+      if (!validated) {
+        lastError = 'El modelo no entregó la estructura de análisis requerida.'
+        continue
+      }
+
+      console.info('DiloBien: análisis completado.', {
+        model: currentModel,
+        elapsedMs: Date.now() - startedAt,
+      })
+      return NextResponse.json(validated)
     }
 
-    const choice = result?.choices?.[0]
-
-    // No se debe aceptar una respuesta cortada como si fuera un análisis válido.
-    if (choice?.finish_reason === 'length') {
-      console.error('DiloBien: el modelo agotó el límite de generación.', {
-        model,
-        finishReason: choice.finish_reason,
-        completionTokens: result?.usage?.completion_tokens ?? null,
-        reasoningTokens:
-          result?.usage?.completion_tokens_details?.reasoning_tokens ?? null,
-      })
-
-      return NextResponse.json(
-        {
-          error:
-            'La inteligencia artificial no pudo terminar el análisis. Intenta nuevamente.',
-        },
-        { status: 502 },
-      )
-    }
-
-    const content = normalizeContent(choice?.message?.content)
-
-    if (!content) {
-      console.error('DiloBien: respuesta sin contenido interpretable.', {
-        model,
-        finishReason: choice?.finish_reason ?? null,
-        contentType: typeof choice?.message?.content,
-        refusal: choice?.message?.refusal ?? null,
-        completionTokens: result?.usage?.completion_tokens ?? null,
-        reasoningTokens:
-          result?.usage?.completion_tokens_details?.reasoning_tokens ?? null,
-      })
-
-      return NextResponse.json(
-        {
-          error:
-            'La inteligencia artificial no devolvió un análisis. Intenta nuevamente.',
-        },
-        { status: 502 },
-      )
-    }
-
-    let analysis: any
-
-    try {
-      analysis = parseAnalysis(content)
-    } catch {
-      console.error('DiloBien: el contenido recibido no es JSON válido.', {
-        model,
-        finishReason: choice?.finish_reason ?? null,
-        contentLength: content.length,
-      })
-
-      return NextResponse.json(
-        {
-          error:
-            'La inteligencia artificial respondió en un formato incompleto. Intenta nuevamente.',
-        },
-        { status: 502 },
-      )
-    }
-
-    const validated = validateAnalysis(analysis)
-
-    if (!validated) {
-      console.error('DiloBien: estructura de análisis inválida.', {
-        model,
-        finishReason: choice?.finish_reason ?? null,
-      })
-
-      return NextResponse.json(
-        {
-          error:
-            'La inteligencia artificial no entregó todos los datos necesarios.',
-        },
-        { status: 502 },
-      )
-    }
-
-    return NextResponse.json(validated)
-  } catch (error) {
-    const isTimeout =
-      error instanceof Error &&
-      (error.name === 'TimeoutError' || error.name === 'AbortError')
-
-    console.error('DiloBien: error al analizar PQRS.', {
-      errorName: error instanceof Error ? error.name : 'UnknownError',
-      errorMessage:
-        error instanceof Error
-          ? error.message.slice(0, 250)
-          : 'Error desconocido',
+    const timedOut = lastError.includes('tiempo de respuesta')
+    console.error('DiloBien: fallaron los modelos de análisis.', {
+      modelsAttempted: models,
+      reason: lastError,
+      elapsedMs: Date.now() - startedAt,
     })
 
     return NextResponse.json(
       {
-        error: isTimeout
-          ? 'La inteligencia artificial está tardando demasiado. Intenta nuevamente.'
-          : 'Ocurrió un error al analizar tu situación. Intenta nuevamente.',
+        error: timedOut
+          ? 'La inteligencia artificial está tardando demasiado. Intenta nuevamente en unos segundos.'
+          : 'No pudimos procesar tu relato. Intenta nuevamente; tu información sigue en el formulario.',
       },
+      { status: timedOut ? 504 : 502 },
+    )
+  } catch (error) {
+    console.error('DiloBien: error inesperado al analizar PQRS.', {
+      errorName: error instanceof Error ? error.name : 'UnknownError',
+      errorMessage: error instanceof Error ? error.message.slice(0, 200) : 'Error desconocido',
+      elapsedMs: Date.now() - startedAt,
+    })
+    return NextResponse.json(
+      { error: 'Ocurrió un error al procesar tu relato. Tu información sigue en el formulario.' },
       { status: 500 },
     )
   }
 }
-
