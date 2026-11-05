@@ -22,10 +22,17 @@ export function StepEntity() {
     <StepShell
       title="¿Con quién tienes el problema?"
       description="Necesitamos saber a quién va dirigida tu solicitud."
+      validationMessage={
+        !data.entityKind
+          ? 'Selecciona el tipo de entidad o empresa.'
+          : data.entityName.trim().length <= 1
+            ? 'Escribe el nombre de la empresa o entidad.'
+            : undefined
+      }
     >
       <FieldGroup>
         <FieldSet>
-          <FieldLegend variant="label">Tipo de entidad o empresa</FieldLegend>
+          <FieldLegend variant="label">Tipo de entidad o empresa (obligatorio)</FieldLegend>
           <RadioGroup
             value={data.entityKind}
             onValueChange={(value) =>
@@ -46,7 +53,7 @@ export function StepEntity() {
 
         <Field>
           <FieldLabel htmlFor="entityName">
-            Nombre de la empresa o entidad
+            Nombre de la empresa o entidad (obligatorio)
           </FieldLabel>
           <Input
             id="entityName"
