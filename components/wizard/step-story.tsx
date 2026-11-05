@@ -53,7 +53,9 @@ export function StepStory() {
       setQuestions(analysis.questions)
       setAnalyzed(true)
 
-      if (analysis.sufficient) {
+      // Solo se permite una ronda de preguntas aclaratorias. Si el ciudadano
+      // ya las respondió, no bloqueamos el avance con nuevas preguntas del modelo.
+      if (analysis.sufficient || data.analysisAnswers.length > 0) {
         next()
       }
     } catch (err) {
