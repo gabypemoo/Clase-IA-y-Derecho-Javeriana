@@ -16,7 +16,10 @@ REGLAS:
 - No inventes hechos, fechas, pruebas, nombres, radicados ni normas.
 - Ten en cuenta las respuestas anteriores.
 - No repitas preguntas respondidas ni preguntes de nuevo por datos que el ciudadano dijo desconocer.
-- Formula como máximo 2 preguntas sencillas y necesarias.
+- Formula como máximo 2 preguntas sencillas y necesarias en una única ronda.
+- No preguntes por datos que el formulario solicita en pasos posteriores (entidad, tipo de PQRS o resultado esperado).
+- No preguntes por detalles accesorios, datos personales sensibles ni información que el ciudadano pueda completar directamente en el documento.
+- Si el ciudadano ya respondió las preguntas de aclaración, no formules preguntas nuevas: considera suficiente la información y permite continuar.
 - Pregunta únicamente por información esencial para entender el caso o redactar solicitudes concretas.
 - Si la información es suficiente, sufficient debe ser true y questions debe ser [].
 - Si falta información esencial, sufficient debe ser false y debes formular al menos una pregunta.
@@ -94,7 +97,7 @@ function validateAnalysis(analysis: any) {
       question.question.trim() &&
       typeof question.reason === 'string',
     )
-    .slice(0, 3)
+    .slice(0, 2)
     .map((question: any, index: number) => ({
       id: typeof question.id === 'string' && question.id.trim()
         ? question.id
@@ -252,6 +255,13 @@ export async function POST(request: Request) {
       if (!validated) {
         lastError = 'El modelo no entregó la estructura de análisis requerida.'
         continue
+      }
+
+      // DiloBien permite una sola ronda de aclaraciones. Después de que el ciudadano
+      // responde, continúa al siguiente paso para evitar bucles de preguntas.
+      if (answers.length > 0) {
+        validated.sufficient = true
+        validated.questions = []
       }
 
       console.info('DiloBien: análisis completado.', {
