@@ -44,6 +44,11 @@ export function StepDetails() {
       title="Un par de datos más"
       description="Solo te preguntamos lo necesario para que tu PQRS quede completa."
       continueLabel="Generar mi PQRS"
+      validationMessage={
+        data.expectedOutcome.trim().length < 10
+          ? 'Cuéntanos qué solución esperas obtener (al menos 10 caracteres).'
+          : undefined
+      }
     >
       <FieldGroup>
         <Field>
@@ -121,7 +126,7 @@ export function StepDetails() {
 
         <Field>
           <FieldLabel htmlFor="expectedOutcome">
-            ¿Qué solución esperas obtener?
+            ¿Qué solución esperas obtener? (obligatorio)
           </FieldLabel>
           <Textarea
             id="expectedOutcome"
@@ -129,7 +134,9 @@ export function StepDetails() {
             onChange={(event) => update({ expectedOutcome: event.target.value })}
             placeholder="Ejemplo: Que eliminen el cobro del servicio que no contraté y me devuelvan lo pagado."
             className="min-h-28"
+            aria-required="true"
           />
+          <FieldDescription>Este dato es necesario para formular solicitudes concretas. No es obligatorio completar fecha, anexos ni datos de contacto para continuar.</FieldDescription>
         </Field>
 
         <FieldSeparator />
