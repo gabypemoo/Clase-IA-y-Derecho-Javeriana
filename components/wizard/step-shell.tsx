@@ -56,6 +56,13 @@ export function StepShell({
 
       {children}
 
+      {validationMessage && (!canContinue || continueDisabled) ? (
+        <Alert variant="destructive" aria-live="polite">
+          <AlertCircle />
+          <AlertDescription>{validationMessage}</AlertDescription>
+        </Alert>
+      ) : null}
+
       <footer className="flex flex-col-reverse gap-3 border-t border-border pt-6 sm:flex-row sm:items-center sm:justify-between">
         {step > 1 ? (
           <Button
