@@ -21,7 +21,8 @@ export function StepKind() {
   return (
     <StepShell
       title="¿Qué tipo de solicitud necesitas?"
-      description="Elige la opción que más se parezca a tu caso. Si no lo tienes claro, lo identificamos por ti."
+      description="Elige la opción que más se parezca a tu caso. Si no lo tienes claro, selecciona ‘No estoy seguro’ y la IA te ayudará."
+      validationMessage={!data.pqrsKind ? 'Selecciona una opción para continuar. Si tienes dudas, elige “No estoy seguro”.' : undefined}
     >
       <RadioGroup
         value={data.pqrsKind}
