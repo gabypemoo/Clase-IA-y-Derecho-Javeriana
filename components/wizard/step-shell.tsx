@@ -2,7 +2,8 @@
 'use client'
 
 import type { ReactNode } from 'react'
-import { ArrowLeft, ArrowRight } from 'lucide-react'
+import { AlertCircle, ArrowLeft, ArrowRight } from 'lucide-react'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { useWizard } from '@/components/wizard/wizard-context'
 
@@ -13,6 +14,7 @@ interface StepShellProps {
   continueLabel?: string
   continueDisabled?: boolean
   onContinue?: () => void | Promise<void>
+  validationMessage?: string
 }
 
 export function StepShell({
@@ -22,6 +24,7 @@ export function StepShell({
   continueLabel = 'Continuar',
   continueDisabled = false,
   onContinue,
+  validationMessage,
 }: StepShellProps) {
   const { step, next, back, canContinue } = useWizard()
 
