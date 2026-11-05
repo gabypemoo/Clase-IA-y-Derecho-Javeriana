@@ -105,6 +105,13 @@ export function StepStory() {
             : 'Analizar mi problema'
       }
       continueDisabled={loading || (questions.length > 0 && unanswered)}
+      validationMessage={
+        data.story.trim().length < 20
+          ? 'Cuéntanos qué ocurrió con al menos 20 caracteres para continuar.'
+          : questions.length > 0 && unanswered
+            ? 'Responde las preguntas pendientes. Si no conoces algún dato, puedes escribirlo.'
+            : undefined
+      }
       onContinue={analyzeStory}
     >
       <Field>
